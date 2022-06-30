@@ -1,6 +1,7 @@
 results/
 figs/
 data/
-**B/__pycache__/
+**/__pycache__/
 trush/
 test/
+poetry.lock
