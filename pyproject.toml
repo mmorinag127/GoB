@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "GoB"
+version = "0.1.0"
+description = ""
+authors = ["Masahiro Morinaga"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+jaxlib = {path = "/data/morinaga/wheel/jaxlib-0.3.8+cuda11.cudnn82-cp38-none-manylinux2014_x86_64.whl"}
+jax = "^0.3.13"
+dm-haiku = "^0.0.6"
+optax = "^0.1.2"
+einops = "^0.4.1"
+tensorflow = "^2.9.1"
+tensorflow-datasets = "^4.5.2"
+tqdm = "^4.64.0"
+attrdict = "^2.0.1"
+PyYAML = "^6.0"
+yapf = "^0.32.0"
+matplotlib = "^3.5.2"
+scikit-learn = "^1.1.1"
+tensorboardX = "^2.5.1"
+GPUtil = "^1.4.0"
+mlflow = "^1.27.0"
+
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

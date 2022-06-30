@@ -1,0 +1,6 @@
+results/
+figs/
+data/
+**B/__pycache__/
+trush/
+test/
