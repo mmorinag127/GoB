@@ -11,12 +11,13 @@ model=CNN-64
 model=ViT-VT/16
 model=Mixer-VT/16
 model=gMLP-VT/16
+
 #model=GoB-S/16
 
 model_name=nominal
 
 experiment=FiLM
-run=test1
+#run=test1
 mode=train
 #mode=eval-test
 

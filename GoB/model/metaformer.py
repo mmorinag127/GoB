@@ -41,6 +41,7 @@ class ViT(hk.Module):
         out = make_pos_cls_layer(B, N, C, dropout_rate)(out, training)
         
         # film
+        gamma, beta = None, None
         if self.film is not None:
             gamma, beta = make_film_generator(**self.film)(prop, training)
         
@@ -77,6 +78,7 @@ class Mixer(hk.Module):
         out = make_patch_layer(self.patch_size, self.dim)(image)
         
         # film 
+        gamma, beta = None, None
         if self.film is not None:
             gamma, beta = make_film_generator(**self.film)(prop, training)
         
@@ -116,6 +118,7 @@ class gMLP(hk.Module):
         out = make_patch_layer(self.patch_size, self.dim)(image)
         
         # film 
+        gamma, beta = None, None
         if self.film is not None:
             gamma, beta = make_film_generator(**self.film)(prop, training)
         

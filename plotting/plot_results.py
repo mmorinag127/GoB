@@ -423,7 +423,7 @@ def main(opts):
     
     jet_labels = ['ud-jet', 's-jet', 'c-jet', 'b-jet', 'g-jet', 'gud-jet', 'gs-jet', 'gc-jet', 'gb-jet'] 
     #jet_labels = ['uds-jet', 'c-jet', 'b-jet', 'g-jet', 'guds-jet', 'gc-jet', 'gb-jet'] 
-    jet_labels = ['g-jet', 'ud-jet', 's-jet', 'c-jet', 'b-jet'] 
+    jet_labels = ['g-jet', 'u-jet', 'd-jet', 's-jet', 'c-jet', 'b-jet'] 
 
     #jet_labels = ['uds-jet', 'c-jet', 'b-jet', 'g-jet'] 
     workdir = opts.workdir
@@ -444,7 +444,7 @@ def main(opts):
     
     
     
-    pt, eta, n_charged, n_neutral = props[:, 0], props[:, 1], props[:, 2], props[:, 3]
+    pt, n_charged, n_neutral = props[:, 0], props[:, 1], props[:, 2]#, props[:, 3]
     
     
     scores = softmax(sigmoid(logits))
@@ -457,7 +457,7 @@ def main(opts):
     vars.register(name = 'n_charged', label = r'#of charged',           bins = 20, range = [ 0, 20], values = n_charged, norm = norm)
     vars.register(name = 'n_neutral', label = r'#of neutral',           bins = 20, range = [ 0, 20], values = n_neutral, norm = norm)
     vars.register(name = 'pt',        label = r'$p_{\mathrm{T}}$[GeV]', bins = 40, range = [ 0,400], values = pt, is_log = True, norm = norm)
-    vars.register(name = 'eta',       label = r'$\eta$',                bins = 60, range = [-3,  3], values = eta, norm = norm)
+    #vars.register(name = 'eta',       label = r'$\eta$',                bins = 60, range = [-3,  3], values = eta, norm = norm)
     for i, jet_label in enumerate(jet_labels):
         #vars.register(name = f'out-{jet_label}',     label = f'{jet_label} out',      bins = 50, range = [-7.5,1.0], values = outputs[:, i], is_log = True)
         #vars.register(name = f'sigmoid-{jet_label}', label = f'{jet_label} sigmoid',  bins = 50, range = [-1.0,1.0], values = _outputs2[:, i], is_log = True)
@@ -471,7 +471,7 @@ def main(opts):
     
     vars2.register(name = 'n_charged', label = r'#of charged',           bins = 20, range = [ 0, 20], values = n_charged, norm = norm)
     vars2.register(name = 'n_neutral', label = r'#of neutral',           bins = 20, range = [ 0, 20], values = n_neutral, norm = norm)
-    vars2.register(name = 'eta',       label = r'$\eta$',                bins = 60, range = [-3,  3], values = eta, norm = norm)
+    #vars2.register(name = 'eta',       label = r'$\eta$',                bins = 60, range = [-3,  3], values = eta, norm = norm)
     vars2.register(name = 'pt',        label = r'$p_{\mathrm{T}}$[GeV]', 
                     bins = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 125, 150, 200, 300, 400],
                     range = [ 0,400], values = pt, is_log = True, norm = norm)
@@ -568,7 +568,7 @@ if __name__ == '__main__':
     # parser.add_argument('-m',  '--model',      action = 'store', dest = 'model',      type = str, default = 'MLPMixer')
     # parser.add_argument('-cl', '--classifier', action = 'store', dest = 'classifier', type = str, default = 'MLP')
     # parser.add_argument('-i',  '--id',         action = 'store', dest = 'id',         type = str, default = None)
-    parser.add_argument('-mn', '--model_name', action = 'store', dest = 'model_name', type = str, default = None)
+    parser.add_argument('-mn', '--model_name', action = 'store', dest = 'model_name', type = str, default = 'nominal')
     parser.add_argument('-w', '--workdir',     action = 'store', dest = 'workdir',    type = str, default = None)
 
     opts = parser.parse_args()

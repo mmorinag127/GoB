@@ -1,8 +1,8 @@
 
 seed: &seed 3407
 batch_size: &batch_size 1024
-n_class: &n_class 5
-n_epochs: &n_epochs 20
+n_class: &n_class 6
+n_epochs: &n_epochs 100
 weight_decay: &weight_decay 1.0e-5
 
 
@@ -46,11 +46,10 @@ lr_scheduler:
     warmup_steps: 5
     decay_steps: *n_epochs
     end_value: 1.0e-6
-    
+
 loss:
-  cb_ce_loss: {beta: 0.999, gamma: -2.0}
+  cb_ce_loss: {beta: 0.999, gamma: 2.0}
   ce_loss: None
-  
 
 dataset:
   data_name: nominal
@@ -62,9 +61,9 @@ dataset:
   transpose: True
   cache: False
   prop_table: [0, 4, 5]
-  label_table: [7, 1, 1, 2, 3, 4, 0] # [None, d, u, s, c, b, g]
+  label_table: [7, 1, 2, 3, 4, 5, 0] # [None, d, u, s, c, b, g]
   
-FiLM : &FiLM {depth: 16, dim: 4, dim_inner: 4, norm: null, activation: null, dropout: null}
+FiLM : &FiLM {depth: 64, dim: 4, dim_inner: 4, norm: null, activation: null, dropout: null}
 #FiLM : &FiLM null
 
 hparams:
@@ -77,15 +76,16 @@ model:
   ViT-VT/16:   {patch_size: 4, depth:  4, dim:   64, expansion: 4, n_heads:    4, dropout: null, drop_path: null, layer_scale: null, qkv_bias: False, n_classes: *n_class, film: *FiLM}
   ViT-S/16:    {patch_size: 4, depth: 12, dim:  384, expansion: 4, n_heads:    6, dropout: null, drop_path: null, layer_scale: null, qkv_bias: False, n_classes: *n_class, film: *FiLM}
   ViT-B/16:    {patch_size: 4, depth: 12, dim:  768, expansion: 4, n_heads:   12, dropout: null, drop_path: null, layer_scale: null, qkv_bias: False, n_classes: *n_class, film: *FiLM}
-  Mixer-T/16:  {patch_size: 4, depth: 16, dim:  128, expansion: 4,                dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-5,                n_classes: *n_class, film: *FiLM}
-  Mixer-VT/16: {patch_size: 4, depth:  4, dim:   64, expansion: 4,                dropout: null, drop_path: null, layer_scale: null,                  n_classes: *n_class, film: *FiLM}
   Mixer-S/16:  {patch_size: 4, depth: 12, dim:  384, expansion: 4,                dropout: null, drop_path: null, layer_scale: null,                  n_classes: *n_class, film: *FiLM}
   Mixer-B/16:  {patch_size: 4, depth: 12, dim:  768, expansion: 4,                dropout: null, drop_path: null, layer_scale: null,                  n_classes: *n_class, film: *FiLM}
   GoB-VT/16:   {patch_size: 4, depth:  4, dim:   64, expansion: 4, n_heads:    4, dropout: null, drop_path: null, layer_scale: null, qkv_bias: False, n_classes: *n_class, film: *FiLM}
   GoB-S/16:    {patch_size: 4, depth: 12, dim:  384, expansion: 4, n_heads:    6, dropout: null, drop_path: null, layer_scale: null, qkv_bias: False, n_classes: *n_class, film: *FiLM}
   GoB-B/16:    {patch_size: 4, depth: 12, dim:  768, expansion: 4, n_heads:   12, dropout: null, drop_path: null, layer_scale: null, qkv_bias: False, n_classes: *n_class, film: *FiLM}
+
   gMLP-T/16:   {patch_size: 4, depth: 16, dim:  128, expansion: 4, n_heads:    4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-5,                n_classes: *n_class, film: *FiLM}
-  gMLP-VT/16:  {patch_size: 4, depth:  4, dim:   64, expansion: 4, n_heads:    4, dropout: null, drop_path: null, layer_scale: null,                  n_classes: *n_class, film: *FiLM}
+  gMLP-VT/16:  {patch_size: 4, depth:  4, dim:   64, expansion: 4, n_heads:    4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-5,                n_classes: *n_class, film: *FiLM}
+  Mixer-T/16:  {patch_size: 4, depth: 16, dim:  128, expansion: 4,                dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-5,                n_classes: *n_class, film: *FiLM}
+  Mixer-VT/16: {patch_size: 4, depth:  4, dim:   64, expansion: 4,                dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-5,                n_classes: *n_class, film: *FiLM}
   
   CNN-64: {dim: 64, patch_size: 16, n_classes: *n_class}
   Test: {dim: 64, patch_size: 16, n_classes: *n_class}

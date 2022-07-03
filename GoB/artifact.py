@@ -75,7 +75,6 @@ class Artifact:
                     k = config.setup[v]
                     self.hparams[v] = k
                     self.hparams[key] = deepcopy(config.config[v][k])
-                    
             else:
                 self.hparams[key] = deepcopy(val)
         self.hparams = flatten_nested_dict(self.hparams)

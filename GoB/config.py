@@ -89,6 +89,8 @@ class Config:
     
     def print_summary(self, run_info, model_summary, datasets, model_info, phases, hparams):
         if model_summary is not None:
+            d = '-'*20
+            logger.info(f'{d:<20s} :')
             for s in model_summary.split('\n'):
                 #logger.info(s)
                 print(s)
@@ -98,25 +100,39 @@ class Config:
             logger.info(f'{key: >20s} : {v:<20s}')
         
         if run_info is not None:
+            d = '-'*20
+            logger.info(f'{d:<20s} :')
+            d = f'experiment info'
+            logger.info(f'{d:<20s} :')
             for key, val in run_info.items():
                 v = f'{val}'
                 logger.info(f'{key: >20s} : {v:<20s}')
         
         if model_info is not None:
+            d = '-'*20
+            logger.info(f'{d:<20s} :')
+            d = f'model info'
+            logger.info(f'{d:<20s} :')
             for key, val in model_info.items():
                 v = f'{val}'
                 logger.info(f'{key: >20s} : {v:<20s}')
         
         if hparams is not None:
+            d = '-'*20
+            logger.info(f'{d:<20s} :')
+            d = f'hyper parameters'
+            logger.info(f'{d:<20s} :')
             for key, val in hparams.items():
                 v = f'{val}'
                 logger.info(f'{key: >20s} : {v:<20s}')
                 
-        
-        for phase in phases:
-            d = f'data_info({phase})'
+        if datasets is not None:
+            d = '-'*20
             logger.info(f'{d:<20s} :')
-            for key, val in datasets[phase].info().items():
-                k = f'{key}'
-                v = f'{val}'
-                logger.info(f'{k: >20s} : {v:<20s}')
+            for phase in phases:
+                d = f'data_info({phase})'
+                logger.info(f'{d:<20s} :')
+                for key, val in datasets[phase].info().items():
+                    k = f'{key}'
+                    v = f'{val}'
+                    logger.info(f'{k: >20s} : {v:<20s}')

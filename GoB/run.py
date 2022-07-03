@@ -64,7 +64,7 @@ def main(opts):
     
     for phase in config.phases:
         datasets[phase] = dataset.make_dataset(phase = phase, **config.dataset, dtype = mp_policy.compute_dtype)
-        datasets[phase].n_step = 20
+        #datasets[phase].n_step = 20
         data_length += datasets[phase].n_step
     
     artifact = Artifact(config, data_length = data_length)
