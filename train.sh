@@ -16,7 +16,7 @@ model=gMLP-VT/16
 
 model_name=nominal
 
-experiment=FiLM
+experiment=test
 #run=test1
 mode=train
 #mode=eval-test
