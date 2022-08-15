@@ -69,7 +69,7 @@ def plot_line(x, y, best_epoch, xlabel, lims, figname):
     plt.close()
     # print(f'{figname} is done...')
 
-def plot_history(workdir, results, metrics = ['loss', 'top1_acc', 'top2_acc', 'time'], phases = ('test', 'train')):
+def plot_history(workdir, results, metrics = ['loss', 'top1_acc', 'top2_acc', 'time', 'GPU', 'grad_norm', 'param_norm'], phases = ('test', 'train')):
     
     keywords = {
         'loss': ['loss'],
@@ -80,6 +80,9 @@ def plot_history(workdir, results, metrics = ['loss', 'top1_acc', 'top2_acc', 't
         'batch_size':['batch size'], 
         'process_per_sec':['image/sec'], 
         'time':['training time [sec]'],
+        'GPU': ['GPU usage(all mean) [%]'],
+        'grad_norm': ['Global Gradient Norm'],
+        'param_norm': ['Parameters Norm'],
     }
     keywords.update({f'GPU{i}':[f'GPU{i} usage'] for i in range(8)})
     
@@ -90,9 +93,14 @@ def plot_history(workdir, results, metrics = ['loss', 'top1_acc', 'top2_acc', 't
         os.makedirs(f'{workdir}/history')
     
     
+    Xs, Ys = {}, {}
+    
     for metric in metrics:
+        
         if metric not in results['train']:
+            print(metric, 'skip')
             continue
+        
         X, Y = {}, {}
         for phase in phases:
             d = results[phase][metric]
@@ -101,15 +109,18 @@ def plot_history(workdir, results, metrics = ['loss', 'top1_acc', 'top2_acc', 't
             Y[phase] = {}
             
             for i, v in enumerate(keywords[metric]):
-                Y[phase][v] = d[:, i]
+                if d.ndim > 1:
+                    Y[phase][v] = d[:, i]
+                else:
+                    Y[phase][v] = d[:]
                 X[phase][v] = epochs
         
         labels = np.array(keywords[metric])
         figname = f'{workdir}/history/plot_{metric}.png'
-        
         plot_line(x = X, y = Y, best_epoch = best_epoch, xlabel = ['epoch', metric], lims = None, figname = figname)
-
-
+        Xs[metric] = X
+        Ys[metric] = Y
+    return Xs, Ys
 
 def main(opts):
     filename = f'{opts.workdir}/history-{opts.model_name}.json'
@@ -129,17 +140,20 @@ def main(opts):
     
     
     #print(data)
-    metrics = ['loss', 'top1_acc', 'top2_acc', 'time'] + [f'GPU{i}' for i in range(8)]
-    plot_history(opts.workdir, data[0], metrics = metrics)
-    
-    
-    
+    metrics = ['loss', 'top1_acc', 'top2_acc', 'time', 'GPU', 'grad_norm', 'param_norm']
+    X, Y = plot_history(opts.workdir, data[0], metrics = metrics)
+    return X, Y
+
+
+
+
 
 if __name__ == '__main__':
     #from distutils.util import strtobool
     parser = argparse.ArgumentParser( description = 'This is a script to run xtrk_ntuple_maker' )
     parser.add_argument('-w',  '--workdir', action = 'store', dest = 'workdir',     type = str, default = '')
     parser.add_argument('-mn', '--model_name',   action = 'store', dest = 'model_name', type = str, default = 'nominal')
+    parser.add_argument('-ws', '--workdirs', action = 'store', dest = 'workdirs',     type = str, default = '')
     opts = parser.parse_args()
     main(opts)
     

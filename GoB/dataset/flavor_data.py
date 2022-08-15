@@ -1,3 +1,4 @@
+from operator import is_
 import tensorflow.compat.v2 as tf
 import numpy as np
 
@@ -39,7 +40,7 @@ def serialize_sample(image, prop, label):
     }))
     return proto.SerializeToString()
 
-def deserialize(serialized_example):
+def deserialize(serialized_example, is_prop = False):
     features = tf.io.parse_single_example(
         serialized_example,
         features={
@@ -53,11 +54,17 @@ def deserialize(serialized_example):
     ishape = tf.io.decode_raw(features['ishape'], tf.int32,   name = 'ishape')
     pshape = tf.io.decode_raw(features['pshape'], tf.int32,   name = 'pshape')
     image  = tf.io.decode_raw(features['image'],  tf.float32, name = 'image')
-    prop   = tf.io.decode_raw(features['prop'],   tf.float32, name = 'prop')
+    if is_prop:
+        prop   = tf.io.decode_raw(features['prop'],   tf.float32, name = 'prop')
+        prop  = tf.reshape(prop, pshape)
     
     image = tf.reshape(image, ishape)
-    prop  = tf.reshape(prop, pshape)
+    
     label = tf.cast(features['label'],  tf.int32)
     
-    return {'image':image, 'prop':prop, 'label':label}
+    if is_prop:
+        data = {'image':image, 'prop':prop, 'label':label}
+    else:
+        data = {'image':image, 'label':label}
+    return data
 

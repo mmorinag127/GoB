@@ -5,33 +5,19 @@ import haiku as hk
 def make_model(config, mp_policy):
     model_type = config.setup.model
     
-    if 'ViT' in model_type:
-        from .metaformer import ViT as Model
-    elif 'CNN' in model_type:
-        from .metaformer import CNN as Model
-    elif 'Mixer' in model_type:
-        from .metaformer import Mixer as Model
-    elif 'gMLP' in model_type:
-        from .metaformer import gMLP as Model
-    elif 'GoB' in model_type:
-        from .go_beyond import GoB as Model
-    elif 'Test' in model_type:
-        from .metaformer import Test as Model
-    else:
-        raise ValueError(f'{model_type} is not supported!!')
+    from .metaformer import make_metaformer
     
-    hk.mixed_precision.set_policy(Model, mp_policy)
-    
-    def _forward(batch, training):
-        image = batch['image']
-        prop  = batch['prop']
-        
-        model = Model(**config.model[model_type])
-        return model(image, training = training, prop = prop)
+    def _forward(image, training, check = None):
+        #image = batch['image']
+        #prop  = batch['prop']
+        model = make_metaformer(**config.model[model_type])
+        return model(image, training = training, check = check)#, prop = prop)
     
     forward = hk.transform_with_state(_forward)
-    
     return forward
+
+
+
 
 
 def make_model_info(params):
