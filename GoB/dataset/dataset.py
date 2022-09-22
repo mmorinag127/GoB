@@ -1,5 +1,6 @@
 
 
+import functools
 import math
 # from pkgutil import read_code
 
@@ -10,8 +11,8 @@ import numpy as np
 
 import tensorflow.compat.v2 as tf
 
-from .utils import prefetch_to_device, prepare_tf_data
-from .flavor_data import deserialize
+#from .utils import prefetch_to_device, prepare_tf_data
+from .flavor_data import deserialize_image
 
 def make_preprocess_image(file, eps = 1e-9):
     
@@ -20,9 +21,10 @@ def make_preprocess_image(file, eps = 1e-9):
     std  = tf.convert_to_tensor(f['std_all'],  dtype = tf.float32)
     
     def preprocess_image(example):
-        #image = (example['image'] - mean)/(std + eps)
         image = example['image']
-        return {'image':image, 'label': example['label'], 'prop': example['prop']}
+        image = (image - mean)/(std + eps)
+        example['image'] = image
+        return example
     return preprocess_image
 
 def make_preprocess_label(table):
@@ -31,13 +33,16 @@ def make_preprocess_label(table):
         label = example['label']
         label = tf.gather(table, label)
         label = tf.cast(label, tf.int32)
-        return {'image':example['image'], 'label': label, 'prop': example['prop']}
+        # label = tf.reshape(label, ())
+        example['label'] = label
+        return example
     return preprocess_label
 
 def make_preprocess_prop(table):
     def preprocess_prop(example):
-        prop = tf.cast(tf.gather(example['prop'], table), tf.int32)
-        return {'image':example['image'], 'label': example['label'], 'prop': prop}
+        prop = tf.cast(tf.gather(example['prop'], table), tf.float32)
+        example['prop'] = prop
+        return example
     return preprocess_prop
 
 class DatasetSplit:
@@ -68,8 +73,8 @@ class DatasetSplit:
         return _filter
 
 class Dataset:
-    def __init__(self, data_iter, n_step, length, batch_size):
-        self.iter = data_iter
+    def __init__(self, ds, n_step, length, batch_size):
+        self.ds = ds
         self.n_step = n_step
         self.length = length
         self.batch_size = batch_size
@@ -80,6 +85,7 @@ class Dataset:
 def make_dataset(data_name, phase, split, batch_size, dtype, label_table, prop_table, cache = False, transpose = False, n_prefetch = 2):
     
     n_device = jax.local_device_count()
+    n_device = 1
     
     if 'nominal' in data_name:
         datafiles = 'data/flavor/all-flavor-reco-32x32'
@@ -104,16 +110,19 @@ def make_dataset(data_name, phase, split, batch_size, dtype, label_table, prop_t
     ds = ds.enumerate().filter(ds_split.filter(), name = ds_split.name)
     def de_enumerate(i,x):
         return x
-    ds = ds.map(de_enumerate, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'de_enumetate')
+    ds = ds.map(de_enumerate, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'de_enumerate')
     
     # Only cache if we are reading a subset of the dataset.
-    if cache:
-        ds = ds.cache()
+    if cache and 'test' in phase:
+        ds = ds.cache('data/cache/test2.tfrecord')
     
-    ds = ds.shuffle(buffer_size = 16*batch_size*n_device, seed = 0)
+    if 'train' in phase:
+        ds = ds.shuffle(buffer_size = 16*batch_size*n_device, seed = 0)
+        
     ds = ds.repeat()
     
-    ds = ds.map(deserialize, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'deserialize')
+    f_deserialize_image = functools.partial(deserialize_image, is_prop = True)
+    ds = ds.map(f_deserialize_image, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'deserialize_image')
     
     ds = ds.map(preprocess_image, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'preprocessing_image')
     ds = ds.map(preprocess_prop,  num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'preprocessing_prop')
@@ -137,12 +146,14 @@ def make_dataset(data_name, phase, split, batch_size, dtype, label_table, prop_t
         ds = ds.map(cast_prop,  num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'cast_prop')
     
     
-    ds = ds.batch(batch_size*n_device, drop_remainder = True)
-    ds = ds.prefetch(tf.data.experimental.AUTOTUNE, name = 'prefetch')
+    ds = ds.batch(batch_size*n_device, drop_remainder = 'train' in phase)
+    #ds = ds.prefetch(tf.data.experimental.AUTOTUNE, name = 'prefetch')
+    ds = ds.prefetch(16, name = 'prefetch')
     
-    it = map(prepare_tf_data, ds)
-    it = prefetch_to_device(it, n_prefetch)
+    #it = map(prepare_tf_data, ds)
+    #it = prefetch_to_device(it, n_prefetch)
+    #it = iter(ds)
     info = ds_split.info(batch_size, n_device)
-    return Dataset(it, **info)
+    return Dataset(ds, **info)
 
 

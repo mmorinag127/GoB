@@ -230,6 +230,43 @@ def plot_1d_eff(X, Y, var, figname, is_norm = False):
     plt.close()
     print(f'{figname} is done...')
 
+def make_MoE_plot(labels, ew, figname, cbar_lim = None):
+    
+    fig = plt.figure(figsize=(6.0, 6.0) )
+    gs = fig.add_gridspec(nrows = 1, hspace=0)
+    ax = gs.subplots(sharex=True, sharey=True)
+    cmap = 'nord_mono_blue'
+    
+    im = ax.imshow(ew, interpolation='nearest', cmap = cmap, vmin = cbar_lim[0], vmax = cbar_lim[1])
+    
+    # We want to show all ticks...
+    ax.set(xticks = np.arange(ew.shape[1]), yticks = np.arange(ew.shape[0]),
+            #xticklabels = [f'{i}' for i in range(ew.shape[0])], yticklabels = labels,
+            title = 'Average Expert Weight' )
+    ax.set_xlabel('Expert Index', fontsize=16)
+    ax.set_ylabel('Class Label',  fontsize=16)
+    ax.set_yticks(np.arange(ew.shape[0]), labels=[labels[i] for i in range(ew.shape[0])])
+    ax.yaxis.set_ticks_position('none') 
+    ax.xaxis.set_ticks_position('none') 
+    
+    # Rotate the tick labels and set their alignment.
+    #plt.setp(ax.get_xticklabels(), rotation = 45, ha = "right", rotation_mode="anchor")
+
+    # Loop over data dimensions and create text annotations.
+    fmt = '2f' 
+    for i in range(ew.shape[0]):
+        for j in range(ew.shape[1]):
+            ax.text(j, i, f'{ew[i, j]:.3f}', ha = "center", va = "center", color = "black")
+    
+    fig.tight_layout()
+    #plt.xlim(-0.5, len(labels)-0.5)
+    #plt.ylim(len(labels)-0.5, -0.5)
+    
+    plt.savefig(figname, dpi=300)
+    plt.close()
+    print(f'{figname} is done...')
+
+
 def sigmoid(a):
     return 1 / (1 + np.exp(-a))
 
@@ -258,6 +295,8 @@ class Variables:
     def plot_1d(self, figname, is_norm = True):
         for var in self.vars.keys():
             v = self.vars[var]
+            print(var, v.values.shape)
+            print(self.masks['g-jet'].shape)
             X = { k:v.values[mask] for k, mask in self.masks.items()}
             plot_1d(X, v, figname = f'{figname}/{v.name}.png', is_norm = is_norm)
     
@@ -320,18 +359,16 @@ def open_memmap(filename, shape):
     del fp
     return x
 
-def open_npz(filename):
+def open_npz(filename, xlist = ['logits', 'labels']):
     data = np.load(filename, allow_pickle = True)
-    logits = data['logits']
-    labels = data['labels']
-    props  = data['props']
-    return logits, labels, props
+    #props  = data['props']
+    return [data[x] for x in xlist]
 
 def mkdir(dir):
     if not os.path.exists(dir):
         os.makedirs(dir)
 
-def make_roc_curve(jet_labels, probs, labels, sigs, bkgs, fig_dir):
+def make_roc_curve(jet_labels, probs, labels, fig_dir):
     mkdir(fig_dir)
     from sklearn import metrics
     
@@ -360,16 +397,35 @@ def make_roc_curve(jet_labels, probs, labels, sigs, bkgs, fig_dir):
     
     plot_curves(X = X, Y = Y, Axis = ['Precision', 'Recall'], labels = L, figname = f'{fig_dir}/ROC4.png')
 
-def make_roc_curve_2(jet_labels, probs, labels, sigs, bkgs, fig_dir):
+def jet_to_label(jet):
+    if '-jet' in jet:
+        jet = jet.replace('-jet', '')
+    
+    labels = []
+    jet_table = {'g':[0], 'd':[1], 'u':[2], 's':[3], 'c':[4], 'b':[5], 'l':[1,2,3]}
+    for f in jet:
+        if f not in jet_table.keys():
+            raise(f'{f}-jet is not in the tabel {jet_table}')
+        labels += jet_table[f]
+    return labels
+
+def make_roc_curve_2(probs, labels, sig_label, bkg_labels, fig_dir):
     mkdir(fig_dir)
     from sklearn import metrics
     
     X, Y, R, L = [], [], [], []
-    for i, (sig, bkg) in enumerate(zip(sigs, bkgs)):
+    sig = jet_to_label(sig_label)
+    
+    
+    
+    
+    for i, bkg_label in enumerate(bkg_labels):
+        bkg = jet_to_label(bkg_label)
         
         this_labels = np.zeros_like(labels)
         
         sig_idx = labels < -1
+        
         for s in sig:
             tmp = labels == s
             sig_idx = sig_idx | tmp
@@ -383,11 +439,9 @@ def make_roc_curve_2(jet_labels, probs, labels, sigs, bkgs, fig_dir):
         
         n_sig = len(this_labels[sig_idx])
         n_bkg = len(this_labels[bkg_idx])
-        print(f'sig : {sig}, {n_sig}')
-        print(f'bkg : {bkg}, {n_bkg}')
-        
-        
-        weights = np.ones(len(this_labels), )
+        print(bkg_label)
+        print(bkg)
+        weights = np.ones(this_labels.shape )
         print(weights.shape)
         
         weights[sig_idx] = float(n_sig+n_bkg) / float(n_sig)
@@ -395,27 +449,136 @@ def make_roc_curve_2(jet_labels, probs, labels, sigs, bkgs, fig_dir):
         
         all_idx = bkg_idx | sig_idx
         
-        for s in sig:
-            tmp_probs = probs[s][all_idx]
-        
         this_probs = np.sum(probs[s][all_idx] for s in sig)
         this_labels = this_labels[all_idx]
         weights = weights[all_idx]
-        print(weights)
         
         fpr, tpr, thresholds = metrics.roc_curve(y_true = this_labels, pos_label = 1, y_score = this_probs, sample_weight = weights)
         AUC = metrics.auc(fpr, tpr)
         X.append(tpr)
         Y.append(fpr)
         R.append(1.0/fpr)
-        L.append(f'{jet_labels[i]}:AUC={AUC:.2f}')
+        L.append(f'{bkg_label}:AUC={AUC:.2f}')
         
     plot_curves(X = X, Y = Y, Axis = ['True positive', 'False positive'], labels = L, figname = f'{fig_dir}/ROC1.png')
     plot_curves(X = X, Y = Y, Axis = ['True positive', 'False positive'], labels = L, figname = f'{fig_dir}/ROC2.png', is_log = [False,True])
     plot_curves(X = X, Y = R, Axis = ['Efficiency', 'Rejection'], labels = L, figname = f'{fig_dir}/ROC3.png', is_log = [False,True])
     pass
 
+import jax
+import jax.numpy as jnp
+def naive_top_k(data, k, axis = -1):
+    N = data.shape[axis]
+    def top1(data_, unused):
+        index = jnp.argmax(data_, axis=axis)
+        mask = jax.nn.one_hot(index, N, axis = axis, dtype=jnp.bool_)
+        data_wo_top1 = data_ * (1 - mask)
+        return data_wo_top1, index
+    index = []
+    for i in range(k):
+        data, idx = top1(data, None)
+        index.append(idx)
+        
+    index = jnp.stack(index)
+    index = jnp.moveaxis(index, 0, -1)
+    return index
+
 def main(opts):
+    
+    norm = False
+    #norm = True
+    
+    
+    jet_labels = ['g-jet', 'd-jet', 'u-jet', 's-jet', 'c-jet', 'b-jet'] 
+    jet_labels = ['b-jet', 'c-jet', 's-jet', 'ud-jet', 'g-jet']
+    
+    workdir = opts.workdir
+    print(workdir)
+    fig_dir = f'{workdir}/figs'
+    print(fig_dir)
+    mkdir(fig_dir)
+    mkdir(f'{fig_dir}/hist1d')
+    mkdir(f'{fig_dir}/hist2d')
+
+    
+    
+    
+    logits, labels = open_npz(f'{workdir}/eval-outputs.npz')
+    labels = labels.astype(int)
+    print('logits.shape', logits.shape)
+    print('labels.shape', labels.shape)
+    
+    expert_weights = None
+    if not opts.isNotMoE:
+        expert_weights = open_npz(f'{workdir}/eval-outputs.npz', xlist=['expert_weights'])[0]
+        print('expert_weights.shape', expert_weights.shape)
+        mkdir(f'{fig_dir}/MoE')
+    
+    scores = softmax(sigmoid(logits))
+    print(scores.shape)
+    probs = [transform_score(scores[:, i]) for i in range(len(jet_labels))]
+    masks = { key: labels == i for i, key in enumerate(jet_labels) } 
+    
+    vars = Variables(masks)
+    for i, jet_label in enumerate(jet_labels):
+        vars.register(name = f'score-{jet_label}',   label = f'{jet_label} score',    bins = 50, range = [ 0,1.0], values = probs[i],   is_log = True)
+    
+    
+    vars.plot_1d(figname = f'{fig_dir}/hist1d')
+    #vars.plot_2d(figname = f'{fig_dir}/hist2d')
+    
+    # ROC
+    make_roc_curve(jet_labels, probs, labels, fig_dir = f'{fig_dir}/ROC/all')
+    
+    # make_roc_curve_2(probs, labels, sig_label = 'b-jet',  bkg_labels = ['c-jet', 'udsg-jet', 'udsgc-jet'],      fig_dir = f'{fig_dir}/ROC/b-jet')
+    # make_roc_curve_2(probs, labels, sig_label = 'c-jet',  bkg_labels = ['b-jet', 'udsg-jet', 'udsgb-jet'],      fig_dir = f'{fig_dir}/ROC/c-jet')
+    # make_roc_curve_2(probs, labels, sig_label = 'g-jet',  bkg_labels = ['ud-jet', 'uds-jet', 'b-jet', 'c-jet'], fig_dir = f'{fig_dir}/ROC/g-jet')
+    # make_roc_curve_2(probs, labels, sig_label = 's-jet',  bkg_labels = ['ud-jet', 'g-jet', 'udg-jet'],          fig_dir = f'{fig_dir}/ROC/s-jet')
+    # make_roc_curve_2(probs, labels, sig_label = 'l-jet',  bkg_labels = ['g-jet', 'b-jet', 'c-jet'],             fig_dir = f'{fig_dir}/ROC/l-jet')
+    if expert_weights is not None:
+        ews = []
+        
+        n_layer = expert_weights.shape[1]
+        print(expert_weights.shape)
+        for idx in range(n_layer):
+            ew = expert_weights[:, idx]
+            # ewsum = np.sum(ew, axis = (0, 1))
+            # m = np.mean(ewsum)
+            # s = np.std(ewsum)
+            ew = np.sum(ew, axis=1)/ew.shape[1]
+            
+            _ew = []
+            for i in range(len(jet_labels)):
+                mask = labels == i
+                # print(ew[mask].shape)
+                # _ew_i = ew[mask]/np.sum(ew[mask], axis=-1, keepdims=True)
+                m = np.mean(ew[mask], axis=0)
+                _ew.append(m)
+                
+            ew = np.stack(_ew)
+            ews.append(ew)
+            pass
+        Max = max(np.max(ew) for ew in ews)
+        Min = min(np.min(ew) for ew in ews)
+        for idx in range(n_layer):
+            make_MoE_plot(jet_labels, ews[idx], figname = f'{fig_dir}/MoE/expert_weights_layer{idx}.png', cbar_lim = [Min, Max])
+    
+    # confusion matrix
+    from sklearn.metrics import confusion_matrix
+    pred = np.argmax(logits, axis = 1)
+    cm = confusion_matrix(labels, pred)
+    print(cm)
+    
+    
+    normed_cm = cm / np.sum(cm, axis = 1, keepdims = True)
+    
+    print(normed_cm)
+    mkdir(f'{fig_dir}/cm')
+    plot_confution_matrix(cm, jet_labels, figname = f'{fig_dir}/cm/raw.png', norm = -1 )
+    plot_confution_matrix(normed_cm, jet_labels, figname = f'{fig_dir}/cm/purity.png', norm = 0 )
+    plot_confution_matrix(normed_cm, jet_labels, figname = f'{fig_dir}/cm/efficiency.png', norm = 1 )
+    
+def main_with_prop(opts):
     
     norm = False
     #norm = True
@@ -563,13 +726,14 @@ def plot_jet_attr(opts):
 
 if __name__ == '__main__':
     from distutils.util import strtobool
-    parser = argparse.ArgumentParser( description = 'This is a script to run xtrk_ntuple_maker' )
+    parser = argparse.ArgumentParser()
     # parser.add_argument('-s',  '--seed',       action = 'store', dest = 'seed',       type = int, default = 3407)
     # parser.add_argument('-m',  '--model',      action = 'store', dest = 'model',      type = str, default = 'MLPMixer')
     # parser.add_argument('-cl', '--classifier', action = 'store', dest = 'classifier', type = str, default = 'MLP')
     # parser.add_argument('-i',  '--id',         action = 'store', dest = 'id',         type = str, default = None)
     parser.add_argument('-mn', '--model_name', action = 'store', dest = 'model_name', type = str, default = 'nominal')
     parser.add_argument('-w', '--workdir',     action = 'store', dest = 'workdir',    type = str, default = None)
+    parser.add_argument('-m', '--isNotMoE',       action = 'store_true', dest = 'isNotMoE')
 
     opts = parser.parse_args()
     

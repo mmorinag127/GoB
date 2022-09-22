@@ -1,0 +1,8 @@
+ReshardingTask(shape: (64, 1024), mesh_id: 0->1,
+ShardingSpec((Chunked(2), NoSharding()), (ShardedAxis(axis=0),)) ->
+ShardingSpec((Chunked(2), NoSharding()), (ShardedAxis(axis=0),)))
+
+ReshardingTask(shape: (64, 1024), mesh_id: 1->0,
+ShardingSpec((Chunked(2), NoSharding()), (ShardedAxis(axis=0),)) ->
+ShardingSpec((Chunked(2), NoSharding()), (ShardedAxis(axis=0),)))
+

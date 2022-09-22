@@ -1,0 +1,52 @@
+HloModule train_step_pipeshard_parallel_mesh_0.69-layer_0_backward
+
+%fused_computation (param_1: f32[1024,1024], param_1.3: u32[]) -> f32[512,1024] {
+  %param_1 = f32[1024,1024]{1,0} parameter(0)
+  %param_1.3 = u32[] parameter(1)
+  %convert.1 = s32[] convert(u32[] %param_1.3)
+  %constant_7 = s32[] constant(512)
+  %multiply.2 = s32[] multiply(s32[] %convert.1, s32[] %constant_7)
+  %constant_6 = s32[] constant(0)
+  ROOT %dynamic-slice.2 = f32[512,1024]{1,0} dynamic-slice(f32[1024,1024]{1,0} %param_1, s32[] %multiply.2, s32[] %constant_6), dynamic_slice_sizes={512,1024}
+}
+
+%primitive_computation_add__6.52.layer_0_backward (parameter.53: f32[], parameter.54: f32[]) -> f32[] {
+  %parameter.53 = f32[] parameter(0)
+  %parameter.54 = f32[] parameter(1)
+  ROOT %add.56 = f32[] add(f32[] %parameter.53, f32[] %parameter.54), metadata={op_type="add" op_name="/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/flax/linen/linear.py" source_line=195}
+}
+
+%input_fused_computation_reduce (param_0.1: f32[64,512], param_1.4: f32[]) -> f32[512] {
+  %param_0.1 = f32[64,512]{1,0} parameter(0)
+  %param_1.4 = f32[] parameter(1)
+  ROOT %reduce.2 = f32[512]{0} reduce(f32[64,512]{1,0} %param_0.1, f32[] %param_1.4), dimensions={0}, to_apply=%primitive_computation_add__6.52.layer_0_backward, metadata={op_type="reduce_sum" op_name="parallelize(train_step_pipeshard_parallel_mesh_0)/reduce_sum[axes=(0,)]" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/flax/linen/linear.py" source_line=195}
+}
+
+%primitive_computation_add__5.40.layer_0_backward (parameter.41: f32[], parameter.42: f32[]) -> f32[] {
+  %parameter.41 = f32[] parameter(0)
+  %parameter.42 = f32[] parameter(1)
+  ROOT %add.44 = f32[] add(f32[] %parameter.41, f32[] %parameter.42), metadata={op_type="add" op_name="/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/flax/linen/linear.py" source_line=195}
+}
+
+%input_fused_computation_reduce.1 (param_0.2: f32[64,1024], param_1.5: f32[]) -> f32[1024] {
+  %param_0.2 = f32[64,1024]{1,0} parameter(0)
+  %param_1.5 = f32[] parameter(1)
+  ROOT %reduce.3 = f32[1024]{0} reduce(f32[64,1024]{1,0} %param_0.2, f32[] %param_1.5), dimensions={0}, to_apply=%primitive_computation_add__5.40.layer_0_backward, metadata={op_type="reduce_sum" op_name="parallelize(train_step_pipeshard_parallel_mesh_0)/reduce_sum[axes=(0,)]" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/flax/linen/linear.py" source_line=195}
+}
+
+ENTRY %train_step_pipeshard_parallel_mesh_0.69-layer_0_backward_spmd (param.1: f32[64,1024], param.3: f32[64,512], param.2: f32[1024,1024], param: f32[64,1024]) -> (f32[1024,512], f32[512], f32[512,1024], f32[1024]) {
+  %param = f32[64,1024]{1,0} parameter(3), sharding={replicated}, metadata={op_type="start" op_name="layer_0_backward"}
+  %param.1 = f32[64,1024]{1,0} parameter(0), sharding={replicated}, metadata={op_type="start" op_name="layer_0_backward"}
+  %param.2 = f32[1024,1024]{1,0} parameter(2), sharding={replicated}, metadata={op_type="start" op_name="layer_0_backward"}
+  %partition-id = u32[] partition-id()
+  %fusion = f32[512,1024]{1,0} fusion(f32[1024,1024]{1,0} %param.2, u32[] %partition-id), kind=kLoop, calls=%fused_computation
+  %cublas-gemm.1 = f32[64,512]{1,0} custom-call(f32[64,1024]{1,0} %param.1, f32[512,1024]{1,0} %fusion), custom_call_target="__cublas$gemm", metadata={op_type="dot_general" op_name="parallelize(train_step_pipeshard_parallel_mesh_0)/dot_general[dimension_numbers=(((1,), (1,)), ((), ())) precision=None preferred_element_type=None]" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/flax/linen/linear.py" source_line=188}, backend_config="{\"alpha_real\":1,\"alpha_imag\":0,\"beta\":0,\"dot_dimension_numbers\":{\"lhs_contracting_dimensions\":[\"1\"],\"rhs_contracting_dimensions\":[\"1\"],\"lhs_batch_dimensions\":[],\"rhs_batch_dimensions\":[]},\"batch_size\":\"1\",\"lhs_stride\":\"65536\",\"rhs_stride\":\"524288\",\"selected_algorithm\":\"110\"}"
+  %cublas-gemm.3 = f32[1024,512]{1,0} custom-call(f32[64,1024]{1,0} %param, f32[64,512]{1,0} %cublas-gemm.1), custom_call_target="__cublas$gemm", metadata={op_type="transpose" op_name="parallelize(train_step_pipeshard_parallel_mesh_0)/transpose[permutation=(1, 0)]" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/flax/linen/linear.py" source_line=188}, backend_config="{\"alpha_real\":1,\"alpha_imag\":0,\"beta\":0,\"dot_dimension_numbers\":{\"lhs_contracting_dimensions\":[\"0\"],\"rhs_contracting_dimensions\":[\"0\"],\"lhs_batch_dimensions\":[],\"rhs_batch_dimensions\":[]},\"batch_size\":\"1\",\"lhs_stride\":\"65536\",\"rhs_stride\":\"32768\",\"selected_algorithm\":\"104\"}"
+  %constant_2 = f32[] constant(0), metadata={op_type="reduce_sum" op_name="parallelize(train_step_pipeshard_parallel_mesh_0)/reduce_sum[axes=(0,)]" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/flax/linen/linear.py" source_line=195}
+  %input_fusion_reduce = f32[512]{0} fusion(f32[64,512]{1,0} %cublas-gemm.1, f32[] %constant_2), kind=kInput, calls=%input_fused_computation_reduce, metadata={op_type="reduce_sum" op_name="parallelize(train_step_pipeshard_parallel_mesh_0)/reduce_sum[axes=(0,)]" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/flax/linen/linear.py" source_line=195}
+  %param.3 = f32[64,512]{1,0} parameter(1), sharding={devices=[1,2]0,1}, metadata={op_type="start" op_name="layer_0_backward"}
+  %cublas-gemm.5 = f32[512,1024]{1,0} custom-call(f32[64,512]{1,0} %param.3, f32[64,1024]{1,0} %param.1), custom_call_target="__cublas$gemm", metadata={op_type="transpose" op_name="parallelize(train_step_pipeshard_parallel_mesh_0)/transpose[permutation=(1, 0)]" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/flax/linen/linear.py" source_line=188}, backend_config="{\"alpha_real\":1,\"alpha_imag\":0,\"beta\":0,\"dot_dimension_numbers\":{\"lhs_contracting_dimensions\":[\"0\"],\"rhs_contracting_dimensions\":[\"0\"],\"lhs_batch_dimensions\":[],\"rhs_batch_dimensions\":[]},\"batch_size\":\"1\",\"lhs_stride\":\"32768\",\"rhs_stride\":\"65536\",\"selected_algorithm\":\"108\"}"
+  %input_fusion_reduce.1 = f32[1024]{0} fusion(f32[64,1024]{1,0} %param.1, f32[] %constant_2), kind=kInput, calls=%input_fused_computation_reduce.1, metadata={op_type="reduce_sum" op_name="parallelize(train_step_pipeshard_parallel_mesh_0)/reduce_sum[axes=(0,)]" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/flax/linen/linear.py" source_line=195}
+  ROOT %tuple = (f32[1024,512]{1,0}, f32[512]{0}, f32[512,1024]{1,0}, f32[1024]{0}) tuple(f32[1024,512]{1,0} %cublas-gemm.3, f32[512]{0} %input_fusion_reduce, f32[512,1024]{1,0} %cublas-gemm.5, f32[1024]{0} %input_fusion_reduce.1), metadata={op_type="pipeline_marker" op_name="parallelize(train_step_pipeshard_parallel_mesh_0)/pipeline_marker[name=layer_0_backward mark_type=end]"}
+}
+

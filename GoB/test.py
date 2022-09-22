@@ -1,6 +1,8 @@
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
 import tensorflow.compat.v2 as tf
 
 
@@ -322,7 +324,7 @@ def param_flatten(param, key = '', ret = {}):
 def test_GPUtil():
     import os
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,5"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
     import GPUtil
     
@@ -347,6 +349,42 @@ def test_dict():
     for k, v in dd.items():
         print(k, v)
     
+def test_jax1():
+    shape = (100, 16, 16, 3)
+    a = jax.core.ShapedArray(shape, jnp.float32)
+    #a = jnp.ones(shape, jnp.float32)
+    print(a.shape)
+    #import einops
+    
+    a = jnp.reshape(a, (100, 16, 4, 12))
+    
+    
+    
+    #patch = einops.rearrange(a, 'b (h p1) (w p2) c -> b (h w) (p1 p2 c)', p1 = 4, p2 = 4)
+    #print(patch.shape)
+
+def test_patch():
+    
+    H = 8
+    W = 8
+    P = 4
+    h = H//P
+    w = W//P
+    print(h,w)
+    image = jnp.reshape(jnp.arange(H*W), [H,W,1])
+    print(image)
+    
+    patch = jnp.reshape(image, [h,P,w,P,1])
+    patch = jnp.reshape(patch, [h*w,P*P])
+    print(patch)
+    
+    
+    import einops
+    patch2 = einops.rearrange(image, '(h p1) (w p2) C -> (h w) (p1 p2 C)', p1 = P, p2 = P)
+    print(patch2)
+    
+    
+    
 
 
     
@@ -360,7 +398,9 @@ if __name__ == '__main__':
     #test_tf1()
     #test_pytree()
     #test_GPUtil()
-    test_dict()
+    #test_dict()
+    #test_jax1()
+    test_patch()
     
     
     

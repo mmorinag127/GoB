@@ -91,6 +91,10 @@ def make_loss(config):
         from loss import make_cb_ce_loss
         loss_f = make_cb_ce_loss(config)
     
+    elif 'cb_bce_loss' in config.setup.loss:
+        from loss import make_cb_bce_loss
+        loss_f = make_cb_bce_loss(config)
+    
     elif 'ce_loss' in config.setup.loss:
         from loss import make_softmax_ce_loss
         loss_f = make_softmax_ce_loss(config)
@@ -150,7 +154,7 @@ class Monitor(Thread):
         while not self.stopped:
             for i, res in enumerate(GPUtil.getGPUs()):
                 if f'GPU{i}' in self.gpu_usage.keys():
-                    self.gpu_usage[f'GPU{i}'] += res.load * 100
+                    self.gpu_usage[f'GPU{i}'] += res.load*100.0
                 else:
                     self.gpu_usage[f'GPU{i}'] = 0
             time.sleep(self.delay)
@@ -166,13 +170,18 @@ class Monitor(Thread):
         self.gpu_usage = {}
         self.total = 0
     
-    def get_gpu_usage(self):
+    def get_gpu_usage(self, mean = False):
         if self.total > 0:
             _gpu_usage = { f'GPU/{k}': v/self.total for k,v in self.gpu_usage.items()}
         else:
             print('gpu_usage is all zero!!!!')
             _gpu_usage = { f'GPU/{k}': 0 for k,v in self.gpu_usage.items()}
+        
+        if mean:
+            _gpu_usage = {'GPU': np.mean([v for v in _gpu_usage.values() if v > 0.0]) }
+        
         return _gpu_usage
+    
 
 
 

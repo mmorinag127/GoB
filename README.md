@@ -21,7 +21,7 @@ Follow the official guides to install CUDA and cuDNN. Alpa requires CUDA >= 11.1
 sudo apt install coinor-cbc
 ```
 or if you don't have permission to do `sudo`, then from (here)[https://github.com/coin-or/Cbc#DownloadandInstall].
-Below instruction is building from source.
+Below instruction is built from the source.
 ```
 wget https://raw.githubusercontent.com/coin-or/coinbrew/master/coinbrew
 chmod u+x coinbrew
@@ -33,7 +33,7 @@ chmod u+x coinbrew
 
 ### 3. Update pip version and install cupy:
 ```
-poetry add cupy-cuda114
+poetry add cupy-cuda116
 ```
 Then, check whether your system already has NCCL installed.
 ```

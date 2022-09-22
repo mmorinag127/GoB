@@ -27,7 +27,7 @@ class TrainingMode(Enum):
             return True
         return False
     def eval(self):
-        if self.value in ['train', 'eval-test', 'eval-loss', 'eval-weight', 'trainsfer', 'fine-tuning', 
+        if self.value in ['eval-test', 'eval-loss', 'eval-weight', 'trainsfer', 'fine-tuning', 
                         'nominal', 'data2vec', 'finetuning', 'transfer']:
             return True
 
@@ -41,15 +41,18 @@ class Config:
         self.run_name        = opts.run_name
         if self.run_name is None:
             self.run_name = datetime.datetime.now().strftime("%Y-%m%d-%H:%M")
+            
         
         if self.mode.training():
             self.make_config(path = opts.config, **kwargs)
-            self.exp_dir = f'results/{self.config.setup.model}/{self.experiment_name}'
+            self.exp_dir = f'results/{self.experiment_name}'
+            self.run_name = f'{self.config.setup.model}-{self.config.setup.MoE}-{self.config.setup.head}/{self.run_name}'
             self.workdir = f'{self.exp_dir}/{self.run_name}-{self.config.seed}'
             self.make_workdir()
             self.save_config(opts.model_name)
         else:
-            self.exp_dir = f'results/{opts.model}/{self.experiment_name}'
+            self.exp_dir = f'results/{self.experiment_name}'
+            self.run_name = f'{opts.model}-{opts.MoE}-{opts.head}/{self.run_name}'
             self.workdir = f'{self.exp_dir}/{self.run_name}-{opts.seed}'
             
             self.make_config(f'{self.workdir}/config-{opts.model_name}.yaml', seed = opts.seed)
@@ -57,7 +60,7 @@ class Config:
             for key, val in kwargs.items():
                 self.update(key, val)
             
-            self.update('phases', ['test'] )
+            #self.update('phases', ['test'] )
     
     def __getattr__(self, key):
         if key in self.config.keys():
@@ -87,7 +90,10 @@ class Config:
             dconfig = dict(self.config)
             f.write(yaml.dump(dconfig, default_flow_style = False))
     
-    def print_summary(self, run_info, model_summary, datasets, model_info, phases, hparams):
+    def print_summary(self, process_idx, run_info, model_summary, datasets, model_info, phases, hparams):
+        if process_idx != 0:
+            return
+        
         if model_summary is not None:
             d = '-'*20
             logger.info(f'{d:<20s} :')
@@ -136,3 +142,15 @@ class Config:
                     k = f'{key}'
                     v = f'{val}'
                     logger.info(f'{k: >20s} : {v:<20s}')
+        d = '-'*20
+        logger.info(f'{d:<20s} :')
+        logger.info(f'{self.experiment_name:20s} : {self.run_name:20s}')
+        k = 'workdir'
+        logger.info(f'{k:20s} : {self.workdir}')
+        
+        
+        
+        
+        
+        
+        

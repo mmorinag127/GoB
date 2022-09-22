@@ -1,8 +1,9 @@
 
+import functools
 import tensorflow.compat.v2 as tf
 tf.config.experimental.set_visible_devices([], 'GPU')
 
-from flavor_data import get_binning_mask, serialize_sample, deserialize
+from flavor_data import get_binning_mask, serialize_image, deserialize_image#, serialize_graph
 
 import numpy as np
 import glob
@@ -33,8 +34,40 @@ def make_jet_image(filepath, image_type, dR = 0.4, n_pixel = 32, labels = None):
     
     return image, prop, label
 
+def make_jet_graph(filepath, image_type, labels = None):
+    data = np.load(filepath)
+    label = data['label']
+    if labels is not None:
+        if label not in labels:
+            return None, None, None
+    
+    eta = data[f'{image_type}_eta']
+    phi = data[f'{image_type}_phi']
+    channel = data[f'{image_type}_channel']
+    p4 = data[f'{image_type}_p4']
+    prop = data['prop']
+    
+    points = np.concatenate([eta, phi], axis=-1)
+    
+    jet_pt = prop[:, 0] # pt, eta, phi, e, m, #of charged, #of neutral
+    jet_E = prop[:, 3]
+    pt = p4[:, 0]
+    E = p4[:, 3]
+    
+    dR = np.sqrt(eta**2 + phi**2)
+    logpt = np.log(pt)
+    logE = np.log(E)
+    logpt2 = np.log(pt/jet_pt)
+    logE2 = np.log(E/jet_E)
+    
+    mask_track  = np.float(channel[:, 0] > 0.)
+    mask_EMcalo = np.float(channel[:, 1] > 0.)
+    mask_HCalo  = np.float(channel[:, 2] > 0.)
+    features = np.concatenate([logpt, logE, logpt2, logE2, dR, mask_track, mask_EMcalo, mask_HCalo])
+    
+    return points, features, labels
 
-def make_tfrecords(filename, filepath, image_type, dR = 0.4, n_pixel = 32, n_max = 1000, compression = 'GZIP', valid_labels = None ):
+def make_image_tfrecords(filename, filepath, image_type, is_image, dR = 0.4, n_pixel = 32, n_max = 1000, compression = 'GZIP', valid_labels = None ):
     start = time.time()
     
     print(f'start glob files')
@@ -52,11 +85,16 @@ def make_tfrecords(filename, filepath, image_type, dR = 0.4, n_pixel = 32, n_max
         with tf.io.TFRecordWriter(filename, tf.io.TFRecordOptions(compression_type = compression)) as writer:
             
             for i, idx in enumerate(perms):
-                image, prop, label = make_jet_image(files[idx], image_type = image_type, dR = dR, n_pixel = n_pixel, labels = valid_labels)
-                if image is None:
-                    continue
-                
-                example = serialize_sample(image, prop, label)
+                if is_image:
+                    image, prop, label = make_jet_image(files[idx], image_type = image_type, dR = dR, n_pixel = n_pixel, labels = valid_labels)
+                    if image is None:
+                        continue
+                    example = serialize_image(image, prop, label)
+                else:
+                    points, features, label = make_jet_graph(files[idx], image_type = image_type, labels = valid_labels)
+                    if points is None:
+                        continue
+                    example = serialize_graph(points, features, label)
                 
                 writer.write(example)
                 l = int(label)
@@ -74,14 +112,17 @@ def make_tfrecords(filename, filepath, image_type, dR = 0.4, n_pixel = 32, n_max
     print(f'all time is {stop - start:.2f} sec')
 
 
-def make_tfds(files, batch_size, compression = 'GZIP'):
+def make_image_tfds(files, batch_size, compression = 'GZIP'):
     options = tf.data.Options()
     options.experimental_threading.private_threadpool_size = 48
     options.experimental_threading.max_intra_op_parallelism = 1
     options.experimental_optimization.map_parallelization = True
     
     ds = tf.data.TFRecordDataset(files, compression_type = compression)
-    ds = ds.map(deserialize, num_parallel_calls = tf.data.experimental.AUTOTUNE)
+    
+    functools.partial(deserialize_image, is_prop = True)
+    
+    ds = ds.map(deserialize_image, num_parallel_calls = tf.data.experimental.AUTOTUNE)
     ds = ds.batch(batch_size)
     #ds = ds.shuffle(batch_size*16)
     ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
@@ -111,7 +152,7 @@ class Average:
         self.N  += other.N
 
 def check_label(filename, batch_size, compression):
-    ds = make_tfds(filename+'.tfrecord', batch_size, compression = compression)
+    ds = make_image_tfds(filename+'.tfrecord', batch_size, compression = compression)
     labels = {i:0 for i in range(20)}
     idx = 0
     
@@ -138,7 +179,7 @@ def read_tfrecord(filename, batch_size, compression):
     avgs = [Average(jets[l], shape ) for l in labels]
     
     
-    ds = make_tfds(filename+'.tfrecord', batch_size, compression = compression)
+    ds = make_image_tfds(filename+'.tfrecord', batch_size, compression = compression)
     i = 0
     for data in ds:
         if i % 1000 == 0:
@@ -146,7 +187,7 @@ def read_tfrecord(filename, batch_size, compression):
         
         i += 1
         
-        image, prop, label = data
+        image, label = data['image'], data['label']
         for l, avg in zip(labels, avgs):
             avg.add(image[label == l])
             pass
@@ -188,14 +229,15 @@ def read_tfrecord(filename, batch_size, compression):
 
 def make_dataset():
     
-    filename = '/data/morinaga/work/GoBtest/data/flavor/all-flavor-reco-32x32.tfrecord'
-    make_tfrecords(
+    filename = '/data/morinaga/work/GoB/data/flavor/all-flavor-reco-32x32-max1000.tfrecord'
+    make_image_tfrecords(
         filename = filename,
         filepath = '/home/morinaga/work/data/flavor/2022-06-26/?-jet/*.npz', 
         image_type = 'reco',
+        is_image = True,
         dR = 0.4, 
         n_pixel = 32,
-        n_max = -1,
+        n_max = 1000,
         compression = '',
         valid_labels = [1, 2, 3, 4, 5, 6]
         )
@@ -204,8 +246,8 @@ if __name__ == '__main__':
     
     #make_dataset()
     
-    #read_tfrecord(filename = '/data/morinaga/work/GoB/data/flavor/all-flavor-reco-32x32', batch_size = 128, compression = '')
-    check_label(filename = '/data/morinaga/work/GoB/data/flavor/all-flavor-reco-32x32', batch_size = 1, compression = '')
+    read_tfrecord(filename = '/data/morinaga/work/GoB/data/flavor/all-flavor-reco-32x32-max1000', batch_size = 128, compression = '')
+    #check_label(filename = '/data/morinaga/work/GoB/data/flavor/all-flavor-reco-32x32', batch_size = 1, compression = '')
     
 
     # rng = np.random.default_rng(seed = 0)

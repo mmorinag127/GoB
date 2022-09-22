@@ -1,37 +1,43 @@
+from copy import deepcopy
 import jax.numpy as jnp
 import numpy as np
 import haiku as hk
 
 def make_model(config, mp_policy):
     model_type = config.setup.model
+    head_type = config.setup.head
+    moe_type = config.setup.MoE
     
-    if 'ViT' in model_type:
-        from .metaformer import ViT as Model
-    elif 'CNN' in model_type:
-        from .metaformer import CNN as Model
-    elif 'Mixer' in model_type:
-        from .metaformer import Mixer as Model
-    elif 'gMLP' in model_type:
-        from .metaformer import gMLP as Model
-    elif 'GoB' in model_type:
-        from .go_beyond import GoB as Model
-    elif 'Test' in model_type:
-        from .metaformer import Test as Model
+    if moe_type is not None:
+        model_args = deepcopy(config.model[model_type])
+        model_args['MoE'] = config.MoE[moe_type]
+    
+    
+    if 'GoB' in model_type:
+        from .go_beyond import make_go_beyond as make_model
+        from .go_beyond import make_gob_head as make_head
     else:
-        raise ValueError(f'{model_type} is not supported!!')
+        from .metaformer import make_metaformer as make_model
+        from .metaformer import make_head as make_head
     
-    hk.mixed_precision.set_policy(Model, mp_policy)
-    
-    def _forward(batch, training):
+    def _forward(batch, training, check = None):
         image = batch['image']
         prop  = batch['prop']
-        
-        model = Model(**config.model[model_type])
-        return model(image, training = training, prop = prop)
+        aux = None
+        model = make_model(**model_args)
+        out =  model(image, prop, training = training, check = check)#, prop = prop)
+        if type(out) is tuple:
+            out, aux = out
+        out = make_head(**config.head[head_type])(out, training)
+        if aux is not None:
+            return out, aux
+        return out
     
     forward = hk.transform_with_state(_forward)
-    
     return forward
+
+
+
 
 
 def make_model_info(params):
