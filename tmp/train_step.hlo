@@ -1,0 +1,229 @@
+HloModule train_step_shard_parallel__3.172-accumulate_grad, input_output_alias={ {0}: (6, {}, may-alias), {1}: (7, {}, may-alias), {2}: (8, {}, may-alias), {3}: (9, {}, may-alias), {4}: (10, {}, may-alias) }
+
+%primitive_computation_add__10.61.accumulate_grad (parameter.62: f32[], parameter.63: f32[]) -> f32[] {
+  %parameter.62 = f32[] parameter(0)
+  %parameter.63 = f32[] parameter(1)
+  ROOT %add.65 = f32[] add(f32[] %parameter.62, f32[] %parameter.63), metadata={op_type="add" op_name="/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/flax/linen/linear.py" source_line=195}
+}
+
+%fused_computation (param_1: f32[16], param_1.1: f32[32,16]) -> f32[16] {
+  %param_1 = f32[16]{0} parameter(0)
+  %param_1.1 = f32[32,16]{1,0} parameter(1)
+  %constant_2 = f32[] constant(0), metadata={op_type="reduce_sum" op_name="parallelize(train_step_shard_parallel)/reduce_sum[axes=(0, 1)]" source_file="/data/morinaga/work/alpa/alpa/testing.py" source_line=98}
+  %reduce.4 = f32[16]{0} reduce(f32[32,16]{1,0} %param_1.1, f32[] %constant_2), dimensions={0}, to_apply=%primitive_computation_add__10.61.accumulate_grad, metadata={op_type="reduce_sum" op_name="parallelize(train_step_shard_parallel)/reduce_sum[axes=(0,)]" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/flax/linen/linear.py" source_line=195}
+  ROOT %add.9 = f32[16]{0} add(f32[16]{0} %param_1, f32[16]{0} %reduce.4), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add"}
+}
+
+%fused_computation.2 (param_0.6: f32[32,16], param_1.11: f32[32,16]) -> f32[32,16] {
+  %param_0.6 = f32[32,16]{1,0} parameter(0)
+  %param_1.11 = f32[32,16]{1,0} parameter(1)
+  %subtract.1 = f32[32,16]{1,0} subtract(f32[32,16]{1,0} %param_0.6, f32[32,16]{1,0} %param_1.11), metadata={op_type="sub" op_name="parallelize(train_step_shard_parallel)/sub" source_file="/data/morinaga/work/alpa/alpa/testing.py" source_line=98}
+  %constant_0 = f32[] constant(0.0009765625), metadata={op_type="mul" op_name="parallelize(train_step_shard_parallel)/mul" source_file="/data/morinaga/work/alpa/alpa/testing.py" source_line=98}
+  %broadcast.0 = f32[32,16]{1,0} broadcast(f32[] %constant_0), dimensions={}
+  ROOT %multiply.0 = f32[32,16]{1,0} multiply(f32[32,16]{1,0} %subtract.1, f32[32,16]{1,0} %broadcast.0), metadata={op_type="mul" op_name="parallelize(train_step_shard_parallel)/mul" source_file="/data/morinaga/work/alpa/alpa/testing.py" source_line=98}
+}
+
+%fused_computation.3 (param_0.3: f32[], param_1.7: f32[]) -> f32[] {
+  %param_0.3 = f32[] parameter(0)
+  %param_1.7 = f32[] parameter(1)
+  %constant_1 = f32[] constant(0.00048828125), metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div" source_file="/data/morinaga/work/alpa/alpa/testing.py" source_line=98}
+  %multiply.4 = f32[] multiply(f32[] %param_1.7, f32[] %constant_1), metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div" source_file="/data/morinaga/work/alpa/alpa/testing.py" source_line=98}
+  ROOT %add.11 = f32[] add(f32[] %param_0.3, f32[] %multiply.4), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add"}
+}
+
+%primitive_computation_add__9.47.accumulate_grad (parameter.48: f32[], parameter.49: f32[]) -> f32[] {
+  %parameter.48 = f32[] parameter(0)
+  %parameter.49 = f32[] parameter(1)
+  ROOT %add.51 = f32[] add(f32[] %parameter.48, f32[] %parameter.49), metadata={op_type="add" op_name="/add" source_file="/data/morinaga/work/alpa/alpa/testing.py" source_line=98}
+}
+
+%input_fused_computation_reduce (param_0.7: f32[32,16], param_1.13: f32[32,16]) -> f32[] {
+  %param_0.7 = f32[32,16]{1,0} parameter(0)
+  %param_1.13 = f32[32,16]{1,0} parameter(1)
+  %subtract.2 = f32[32,16]{1,0} subtract(f32[32,16]{1,0} %param_0.7, f32[32,16]{1,0} %param_1.13), metadata={op_type="sub" op_name="parallelize(train_step_shard_parallel)/sub" source_file="/data/morinaga/work/alpa/alpa/testing.py" source_line=98}
+  %multiply.5 = f32[32,16]{1,0} multiply(f32[32,16]{1,0} %subtract.2, f32[32,16]{1,0} %subtract.2), metadata={op_type="integer_pow" op_name="parallelize(train_step_shard_parallel)/integer_pow[y=2]" source_file="/data/morinaga/work/alpa/alpa/testing.py" source_line=98}
+  %bitcast.1 = f32[512]{0} bitcast(f32[32,16]{1,0} %multiply.5)
+  %constant_4 = f32[] constant(0), metadata={op_type="reduce_sum" op_name="parallelize(train_step_shard_parallel)/reduce_sum[axes=(0, 1)]" source_file="/data/morinaga/work/alpa/alpa/testing.py" source_line=98}
+  ROOT %reduce.6 = f32[] reduce(f32[512]{0} %bitcast.1, f32[] %constant_4), dimensions={0}, to_apply=%primitive_computation_add__9.47.accumulate_grad, metadata={op_type="reduce_sum" op_name="parallelize(train_step_shard_parallel)/reduce_sum[axes=(0, 1)]" source_file="/data/morinaga/work/alpa/alpa/testing.py" source_line=98}
+}
+
+ENTRY %train_step_shard_parallel__3.172-accumulate_grad_spmd (param.3: f32[16], param.2: f32[16,16], param.5: f32[16], param.4: f32[16,16], param.1: f32[32,16], param.6: f32[32,16], param: f32[], param.7: f32[16], param.8: f32[16,16], param.9: f32[16], param.10: f32[16,16]) -> (f32[], f32[16], f32[16,16], f32[16], f32[16,16]) {
+  %param = f32[] parameter(6), sharding={replicated}, metadata={op_type="start" op_name="accumulate_grad"}
+  %param.1 = f32[32,16]{1,0} parameter(4), sharding={devices=[4,1]0,1,2,3}, metadata={op_type="start" op_name="accumulate_grad"}
+  %param.2 = f32[16,16]{1,0} parameter(1), sharding={replicated}, metadata={op_type="start" op_name="accumulate_grad"}
+  %param.3 = f32[16]{0} parameter(0), sharding={replicated}, metadata={op_type="start" op_name="accumulate_grad"}
+  %broadcast.4 = f32[32,16]{1,0} broadcast(f32[16]{0} %param.3), dimensions={1}
+  %cublas-gemm.3 = f32[32,16]{1,0} custom-call(f32[32,16]{1,0} %param.1, f32[16,16]{1,0} %param.2, f32[32,16]{1,0} %broadcast.4), custom_call_target="__cublas$gemm", metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/flax/linen/linear.py" source_line=195}, backend_config="{\"alpha_real\":1,\"alpha_imag\":0,\"beta\":1,\"dot_dimension_numbers\":{\"lhs_contracting_dimensions\":[\"1\"],\"rhs_contracting_dimensions\":[\"0\"],\"lhs_batch_dimensions\":[],\"rhs_batch_dimensions\":[]},\"batch_size\":\"1\",\"lhs_stride\":\"512\",\"rhs_stride\":\"256\",\"selected_algorithm\":\"4\"}"
+  %param.4 = f32[16,16]{1,0} parameter(3), sharding={replicated}, metadata={op_type="start" op_name="accumulate_grad"}
+  %param.5 = f32[16]{0} parameter(2), sharding={replicated}, metadata={op_type="start" op_name="accumulate_grad"}
+  %broadcast.5 = f32[32,16]{1,0} broadcast(f32[16]{0} %param.5), dimensions={1}
+  %cublas-gemm.7 = f32[32,16]{1,0} custom-call(f32[32,16]{1,0} %cublas-gemm.3, f32[16,16]{1,0} %param.4, f32[32,16]{1,0} %broadcast.5), custom_call_target="__cublas$gemm", metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/flax/linen/linear.py" source_line=195}, backend_config="{\"alpha_real\":1,\"alpha_imag\":0,\"beta\":1,\"dot_dimension_numbers\":{\"lhs_contracting_dimensions\":[\"1\"],\"rhs_contracting_dimensions\":[\"0\"],\"lhs_batch_dimensions\":[],\"rhs_batch_dimensions\":[]},\"batch_size\":\"1\",\"lhs_stride\":\"512\",\"rhs_stride\":\"256\",\"selected_algorithm\":\"4\"}"
+  %param.6 = f32[32,16]{1,0} parameter(5), sharding={devices=[4,1]0,1,2,3}, metadata={op_type="start" op_name="accumulate_grad"}
+  %input_fusion_reduce = f32[] fusion(f32[32,16]{1,0} %cublas-gemm.7, f32[32,16]{1,0} %param.6), kind=kInput, calls=%input_fused_computation_reduce, metadata={op_type="reduce_sum" op_name="parallelize(train_step_shard_parallel)/reduce_sum[axes=(0, 1)]" source_file="/data/morinaga/work/alpa/alpa/testing.py" source_line=98}
+  %bitcast.2 = f32[1]{0} bitcast(f32[] %input_fusion_reduce)
+  %param.7 = f32[16]{0} parameter(7), sharding={replicated}, metadata={op_type="start" op_name="accumulate_grad"}
+  %fusion.2 = f32[32,16]{1,0} fusion(f32[32,16]{1,0} %cublas-gemm.7, f32[32,16]{1,0} %param.6), kind=kLoop, calls=%fused_computation.2, metadata={op_type="mul" op_name="parallelize(train_step_shard_parallel)/mul" source_file="/data/morinaga/work/alpa/alpa/testing.py" source_line=98}
+  %cublas-gemm.9 = f32[32,16]{1,0} custom-call(f32[32,16]{1,0} %fusion.2, f32[16,16]{1,0} %param.4), custom_call_target="__cublas$gemm", metadata={op_type="dot_general" op_name="parallelize(train_step_shard_parallel)/dot_general[dimension_numbers=(((1,), (1,)), ((), ())) precision=None preferred_element_type=None]" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/flax/linen/linear.py" source_line=188}, backend_config="{\"alpha_real\":1,\"alpha_imag\":0,\"beta\":0,\"dot_dimension_numbers\":{\"lhs_contracting_dimensions\":[\"1\"],\"rhs_contracting_dimensions\":[\"1\"],\"lhs_batch_dimensions\":[],\"rhs_batch_dimensions\":[]},\"batch_size\":\"1\",\"lhs_stride\":\"512\",\"rhs_stride\":\"256\",\"selected_algorithm\":\"0\"}"
+  %fusion.1 = f32[16]{0} fusion(f32[16]{0} %param.7, f32[32,16]{1,0} %cublas-gemm.9), kind=kLoop, calls=%fused_computation, metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add"}
+  %param.8 = f32[16,16]{1,0} parameter(8), sharding={replicated}, metadata={op_type="start" op_name="accumulate_grad"}
+  %cublas-gemm.13 = f32[16,16]{1,0} custom-call(f32[32,16]{1,0} %param.1, f32[32,16]{1,0} %cublas-gemm.9, f32[16,16]{1,0} %param.8), custom_call_target="__cublas$gemm", metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add"}, backend_config="{\"alpha_real\":1,\"alpha_imag\":0,\"beta\":1,\"dot_dimension_numbers\":{\"lhs_contracting_dimensions\":[\"0\"],\"rhs_contracting_dimensions\":[\"0\"],\"lhs_batch_dimensions\":[],\"rhs_batch_dimensions\":[]},\"batch_size\":\"1\",\"lhs_stride\":\"512\",\"rhs_stride\":\"512\",\"selected_algorithm\":\"-1\"}"
+  %bitcast.3 = f32[256]{0} bitcast(f32[16,16]{1,0} %cublas-gemm.13)
+  %param.9 = f32[16]{0} parameter(9), sharding={replicated}, metadata={op_type="start" op_name="accumulate_grad"}
+  %fusion = f32[16]{0} fusion(f32[16]{0} %param.9, f32[32,16]{1,0} %fusion.2), kind=kLoop, calls=%fused_computation, metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add"}
+  %param.10 = f32[16,16]{1,0} parameter(10), sharding={replicated}, metadata={op_type="start" op_name="accumulate_grad"}
+  %cublas-gemm.17 = f32[16,16]{1,0} custom-call(f32[32,16]{1,0} %cublas-gemm.3, f32[32,16]{1,0} %fusion.2, f32[16,16]{1,0} %param.10), custom_call_target="__cublas$gemm", metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add"}, backend_config="{\"alpha_real\":1,\"alpha_imag\":0,\"beta\":1,\"dot_dimension_numbers\":{\"lhs_contracting_dimensions\":[\"0\"],\"rhs_contracting_dimensions\":[\"0\"],\"lhs_batch_dimensions\":[],\"rhs_batch_dimensions\":[]},\"batch_size\":\"1\",\"lhs_stride\":\"512\",\"rhs_stride\":\"512\",\"selected_algorithm\":\"-1\"}"
+  %bitcast.4 = f32[256]{0} bitcast(f32[16,16]{1,0} %cublas-gemm.17)
+  %concatenate = f32[545]{0} concatenate(f32[1]{0} %bitcast.2, f32[16]{0} %fusion.1, f32[256]{0} %bitcast.3, f32[16]{0} %fusion, f32[256]{0} %bitcast.4), dimensions={0}
+  %all-reduce.5 = f32[545]{0} all-reduce(f32[545]{0} %concatenate), channel_id=1, replica_groups={{0}}, to_apply=%primitive_computation_add__9.47.accumulate_grad
+  %slice = f32[1]{0} slice(f32[545]{0} %all-reduce.5), slice={[0:1]}
+  %bitcast.5 = f32[] bitcast(f32[1]{0} %slice), metadata={op_type="reduce_sum" op_name="parallelize(train_step_shard_parallel)/reduce_sum[axes=(0, 1)]" source_file="/data/morinaga/work/alpa/alpa/testing.py" source_line=98}
+  %fusion.3 = f32[] fusion(f32[] %param, f32[] %bitcast.5), kind=kLoop, calls=%fused_computation.3, metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add"}
+  %slice.1 = f32[16]{0} slice(f32[545]{0} %all-reduce.5), slice={[1:17]}, metadata={op_type="reduce_sum" op_name="parallelize(train_step_shard_parallel)/reduce_sum[axes=(0,)]" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/flax/linen/linear.py" source_line=195}
+  %slice.2 = f32[256]{0} slice(f32[545]{0} %all-reduce.5), slice={[17:273]}
+  %bitcast.6 = f32[16,16]{1,0} bitcast(f32[256]{0} %slice.2), metadata={op_type="transpose" op_name="parallelize(train_step_shard_parallel)/transpose[permutation=(1, 0)]" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/flax/linen/linear.py" source_line=188}
+  %slice.3 = f32[16]{0} slice(f32[545]{0} %all-reduce.5), slice={[273:289]}, metadata={op_type="reduce_sum" op_name="parallelize(train_step_shard_parallel)/reduce_sum[axes=(0,)]" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/flax/linen/linear.py" source_line=195}
+  %slice.4 = f32[256]{0} slice(f32[545]{0} %all-reduce.5), slice={[289:545]}
+  %bitcast.7 = f32[16,16]{1,0} bitcast(f32[256]{0} %slice.4), metadata={op_type="transpose" op_name="parallelize(train_step_shard_parallel)/transpose[permutation=(1, 0)]" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/flax/linen/linear.py" source_line=188}
+  ROOT %tuple.1 = (f32[], f32[16]{0}, f32[16,16]{1,0}, f32[16]{0}, f32[16,16]{1,0}) tuple(f32[] %fusion.3, f32[16]{0} %slice.1, f32[16,16]{1,0} %bitcast.6, f32[16]{0} %slice.3, f32[16,16]{1,0} %bitcast.7)
+}
+
+HloModule train_step_shard_parallel__3.172-apply_grad, input_output_alias={ {0}: (0, {}, may-alias), {1}: (1, {}, may-alias), {2}: (2, {}, may-alias), {3}: (3, {}, may-alias), {4}: (4, {}, may-alias), {5}: (5, {}, may-alias), {6}: (6, {}, may-alias), {7}: (7, {}, may-alias), {8}: (8, {}, may-alias) }
+
+%fused_computation (param_0.2: f32[4,16], param_1.26: f32[16,16], param_2.47: u32[], param_3.38: f32[4,16], param_4.16: f32[16,16]) -> (f32[1,4,16], f32[1,4,16]) {
+  %param_1.26 = f32[16,16]{1,0} parameter(1)
+  %param_2.47 = u32[] parameter(2)
+  %convert.17 = s32[] convert(u32[] %param_2.47), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/update.py" source_line=43}
+  %constant_49 = s32[] constant(4), metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div"}
+  %multiply.43 = s32[] multiply(s32[] %convert.17, s32[] %constant_49), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/update.py" source_line=43}
+  %constant_9 = s32[] constant(0), metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div"}
+  %dynamic-slice.0 = f32[4,16]{1,0} dynamic-slice(f32[16,16]{1,0} %param_1.26, s32[] %multiply.43, s32[] %constant_9), dynamic_slice_sizes={4,16}, metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/update.py" source_line=43}
+  %param_0.2 = f32[4,16]{1,0} parameter(0)
+  %constant_10 = f32[] constant(-0.01), metadata={op_type="mul" op_name="parallelize(train_step_shard_parallel)/mul" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/transform.py" source_line=405}
+  %broadcast.1 = f32[4,16]{1,0} broadcast(f32[] %constant_10), dimensions={}
+  %multiply.5 = f32[4,16]{1,0} multiply(f32[4,16]{1,0} %param_0.2, f32[4,16]{1,0} %broadcast.1), metadata={op_type="mul" op_name="parallelize(train_step_shard_parallel)/mul" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/transform.py" source_line=405}
+  %add.9 = f32[4,16]{1,0} add(f32[4,16]{1,0} %dynamic-slice.0, f32[4,16]{1,0} %multiply.5), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/update.py" source_line=43}
+  %bitcast.8 = f32[1,4,16]{2,1,0} bitcast(f32[4,16]{1,0} %add.9)
+  %param_4.16 = f32[16,16]{1,0} parameter(4)
+  %dynamic-slice.5.clone.1 = f32[4,16]{1,0} dynamic-slice(f32[16,16]{1,0} %param_4.16, s32[] %multiply.43, s32[] %constant_9), dynamic_slice_sizes={4,16}, metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/update.py" source_line=43}
+  %param_3.38 = f32[4,16]{1,0} parameter(3)
+  %multiply.21.clone.1 = f32[4,16]{1,0} multiply(f32[4,16]{1,0} %param_3.38, f32[4,16]{1,0} %broadcast.1), metadata={op_type="mul" op_name="parallelize(train_step_shard_parallel)/mul" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/transform.py" source_line=405}
+  %add.13.clone.1 = f32[4,16]{1,0} add(f32[4,16]{1,0} %dynamic-slice.5.clone.1, f32[4,16]{1,0} %multiply.21.clone.1), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/update.py" source_line=43}
+  %bitcast.10.clone.1 = f32[1,4,16]{2,1,0} bitcast(f32[4,16]{1,0} %add.13.clone.1)
+  ROOT %tuple.1 = (f32[1,4,16]{2,1,0}, f32[1,4,16]{2,1,0}) tuple(f32[1,4,16]{2,1,0} %bitcast.8, f32[1,4,16]{2,1,0} %bitcast.10.clone.1)
+}
+
+%fused_computation.1 (param_0.4: f32[4,16], param_1.27: f32[16,16], param_2.33: u32[], param_3.40: f32[4,16], param_4.20: f32[16,16]) -> (f32[4,16], f32[4,16]) {
+  %param_1.27 = f32[16,16]{1,0} parameter(1)
+  %param_2.33 = u32[] parameter(2)
+  %convert.3 = s32[] convert(u32[] %param_2.33), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/update.py" source_line=43}
+  %constant_28 = s32[] constant(4), metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div"}
+  %multiply.29 = s32[] multiply(s32[] %convert.3, s32[] %constant_28), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/update.py" source_line=43}
+  %constant_12 = s32[] constant(0), metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div"}
+  %dynamic-slice.2 = f32[4,16]{1,0} dynamic-slice(f32[16,16]{1,0} %param_1.27, s32[] %multiply.29, s32[] %constant_12), dynamic_slice_sizes={4,16}, metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div"}
+  %constant_13 = f32[] constant(0.5), metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div"}
+  %broadcast.2 = f32[4,16]{1,0} broadcast(f32[] %constant_13), dimensions={}
+  %multiply.7 = f32[4,16]{1,0} multiply(f32[4,16]{1,0} %dynamic-slice.2, f32[4,16]{1,0} %broadcast.2), metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div"}
+  %param_0.4 = f32[4,16]{1,0} parameter(0)
+  %constant_14 = f32[] constant(0.9), metadata={op_type="mul" op_name="parallelize(train_step_shard_parallel)/mul" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/transform.py" source_line=70}
+  %broadcast.3 = f32[4,16]{1,0} broadcast(f32[] %constant_14), dimensions={}
+  %multiply.6 = f32[4,16]{1,0} multiply(f32[4,16]{1,0} %param_0.4, f32[4,16]{1,0} %broadcast.3), metadata={op_type="mul" op_name="parallelize(train_step_shard_parallel)/mul" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/transform.py" source_line=70}
+  %add.10 = f32[4,16]{1,0} add(f32[4,16]{1,0} %multiply.7, f32[4,16]{1,0} %multiply.6), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/transform.py" source_line=70}
+  %param_4.20 = f32[16,16]{1,0} parameter(4)
+  %dynamic-slice.6.clone.1 = f32[4,16]{1,0} dynamic-slice(f32[16,16]{1,0} %param_4.20, s32[] %multiply.29, s32[] %constant_12), dynamic_slice_sizes={4,16}, metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div"}
+  %multiply.23.clone.1 = f32[4,16]{1,0} multiply(f32[4,16]{1,0} %dynamic-slice.6.clone.1, f32[4,16]{1,0} %broadcast.2), metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div"}
+  %param_3.40 = f32[4,16]{1,0} parameter(3)
+  %multiply.22.clone.1 = f32[4,16]{1,0} multiply(f32[4,16]{1,0} %param_3.40, f32[4,16]{1,0} %broadcast.3), metadata={op_type="mul" op_name="parallelize(train_step_shard_parallel)/mul" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/transform.py" source_line=70}
+  %add.14.clone.1 = f32[4,16]{1,0} add(f32[4,16]{1,0} %multiply.23.clone.1, f32[4,16]{1,0} %multiply.22.clone.1), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/transform.py" source_line=70}
+  ROOT %tuple.2 = (f32[4,16]{1,0}, f32[4,16]{1,0}) tuple(f32[4,16]{1,0} %add.10, f32[4,16]{1,0} %add.14.clone.1)
+}
+
+%fused_computation.6 (param_0.17: f32[4], param_1.32: f32[16], param_2.35: u32[], param_3.43: f32[4], param_4.23: f32[16]) -> (f32[1,4], f32[1,4]) {
+  %param_1.32 = f32[16]{0} parameter(1)
+  %param_2.35 = u32[] parameter(2)
+  %convert.5 = s32[] convert(u32[] %param_2.35), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/update.py" source_line=43}
+  %constant_31 = s32[] constant(4), metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div"}
+  %multiply.31 = s32[] multiply(s32[] %convert.5, s32[] %constant_31), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/update.py" source_line=43}
+  %dynamic-slice.7 = f32[4]{0} dynamic-slice(f32[16]{0} %param_1.32, s32[] %multiply.31), dynamic_slice_sizes={4}, metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/update.py" source_line=43}
+  %param_0.17 = f32[4]{0} parameter(0)
+  %constant_23 = f32[] constant(-0.01), metadata={op_type="mul" op_name="parallelize(train_step_shard_parallel)/mul" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/transform.py" source_line=405}
+  %broadcast.16 = f32[4]{0} broadcast(f32[] %constant_23), dimensions={}
+  %multiply.24 = f32[4]{0} multiply(f32[4]{0} %param_0.17, f32[4]{0} %broadcast.16), metadata={op_type="mul" op_name="parallelize(train_step_shard_parallel)/mul" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/transform.py" source_line=405}
+  %add.15 = f32[4]{0} add(f32[4]{0} %dynamic-slice.7, f32[4]{0} %multiply.24), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/update.py" source_line=43}
+  %bitcast.11 = f32[1,4]{1,0} bitcast(f32[4]{0} %add.15)
+  %param_4.23 = f32[16]{0} parameter(4)
+  %dynamic-slice.3.clone.1 = f32[4]{0} dynamic-slice(f32[16]{0} %param_4.23, s32[] %multiply.31), dynamic_slice_sizes={4}, metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/update.py" source_line=43}
+  %param_3.43 = f32[4]{0} parameter(3)
+  %multiply.18.clone.1 = f32[4]{0} multiply(f32[4]{0} %param_3.43, f32[4]{0} %broadcast.16), metadata={op_type="mul" op_name="parallelize(train_step_shard_parallel)/mul" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/transform.py" source_line=405}
+  %add.11.clone.1 = f32[4]{0} add(f32[4]{0} %dynamic-slice.3.clone.1, f32[4]{0} %multiply.18.clone.1), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/update.py" source_line=43}
+  %bitcast.9.clone.1 = f32[1,4]{1,0} bitcast(f32[4]{0} %add.11.clone.1)
+  ROOT %tuple.3 = (f32[1,4]{1,0}, f32[1,4]{1,0}) tuple(f32[1,4]{1,0} %bitcast.11, f32[1,4]{1,0} %bitcast.9.clone.1)
+}
+
+%fused_computation.7 (param_0.19: f32[4], param_1.33: f32[16], param_2.37: u32[], param_3.45: f32[4], param_4.27: f32[16]) -> (f32[4], f32[4]) {
+  %param_1.33 = f32[16]{0} parameter(1)
+  %param_2.37 = u32[] parameter(2)
+  %convert.7 = s32[] convert(u32[] %param_2.37), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/update.py" source_line=43}
+  %constant_34 = s32[] constant(4), metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div"}
+  %multiply.33 = s32[] multiply(s32[] %convert.7, s32[] %constant_34), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/update.py" source_line=43}
+  %dynamic-slice.10 = f32[4]{0} dynamic-slice(f32[16]{0} %param_1.33, s32[] %multiply.33), dynamic_slice_sizes={4}, metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div"}
+  %constant_24 = f32[] constant(0.5), metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div"}
+  %broadcast.17 = f32[4]{0} broadcast(f32[] %constant_24), dimensions={}
+  %multiply.26 = f32[4]{0} multiply(f32[4]{0} %dynamic-slice.10, f32[4]{0} %broadcast.17), metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div"}
+  %param_0.19 = f32[4]{0} parameter(0)
+  %constant_25 = f32[] constant(0.9), metadata={op_type="mul" op_name="parallelize(train_step_shard_parallel)/mul" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/transform.py" source_line=70}
+  %broadcast.18 = f32[4]{0} broadcast(f32[] %constant_25), dimensions={}
+  %multiply.25 = f32[4]{0} multiply(f32[4]{0} %param_0.19, f32[4]{0} %broadcast.18), metadata={op_type="mul" op_name="parallelize(train_step_shard_parallel)/mul" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/transform.py" source_line=70}
+  %add.16 = f32[4]{0} add(f32[4]{0} %multiply.26, f32[4]{0} %multiply.25), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/transform.py" source_line=70}
+  %param_4.27 = f32[16]{0} parameter(4)
+  %dynamic-slice.4.clone.1 = f32[4]{0} dynamic-slice(f32[16]{0} %param_4.27, s32[] %multiply.33), dynamic_slice_sizes={4}, metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div"}
+  %multiply.20.clone.1 = f32[4]{0} multiply(f32[4]{0} %dynamic-slice.4.clone.1, f32[4]{0} %broadcast.17), metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div"}
+  %param_3.45 = f32[4]{0} parameter(3)
+  %multiply.19.clone.1 = f32[4]{0} multiply(f32[4]{0} %param_3.45, f32[4]{0} %broadcast.18), metadata={op_type="mul" op_name="parallelize(train_step_shard_parallel)/mul" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/transform.py" source_line=70}
+  %add.12.clone.1 = f32[4]{0} add(f32[4]{0} %multiply.20.clone.1, f32[4]{0} %multiply.19.clone.1), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/transform.py" source_line=70}
+  ROOT %tuple.4 = (f32[4]{0}, f32[4]{0}) tuple(f32[4]{0} %add.16, f32[4]{0} %add.12.clone.1)
+}
+
+ENTRY %train_step_shard_parallel__3.172-apply_grad_spmd (param: s32[], param.1: f32[16], param.4: f32[16,16], param.7: f32[16], param.10: f32[16,16], param.3: f32[4], param.6: f32[4,16], param.9: f32[4], param.12: f32[4,16], param.13: f32[], param.2: f32[16], param.5: f32[16,16], param.8: f32[16], param.11: f32[16,16]) -> (s32[], f32[16], f32[16,16], f32[16], f32[16,16], /*index=5*/f32[4], f32[4,16], f32[4], f32[4,16], f32[]) {
+  %param = s32[] parameter(0), sharding={replicated}, metadata={op_type="start" op_name="apply_grad"}
+  %constant = s32[] constant(1), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/work/alpa/alpa/model/model_util.py" source_line=339}
+  %add.0 = s32[] add(s32[] %param, s32[] %constant), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/work/alpa/alpa/model/model_util.py" source_line=339}
+  %param.3 = f32[4]{0} parameter(5), sharding={devices=[4]0,1,2,3}, metadata={op_type="start" op_name="apply_grad"}
+  %param.2 = f32[16]{0} parameter(10), sharding={replicated}, metadata={op_type="start" op_name="apply_grad"}
+  %partition-id = u32[] partition-id(), metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/update.py" source_line=43}
+  %param.9 = f32[4]{0} parameter(7), sharding={devices=[4]0,1,2,3}, metadata={op_type="start" op_name="apply_grad"}
+  %param.8 = f32[16]{0} parameter(12), sharding={replicated}, metadata={op_type="start" op_name="apply_grad"}
+  %fusion.7 = (f32[4]{0}, f32[4]{0}) fusion(f32[4]{0} %param.3, f32[16]{0} %param.2, u32[] %partition-id, f32[4]{0} %param.9, f32[16]{0} %param.8), kind=kLoop, calls=%fused_computation.7, metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/transform.py" source_line=70}
+  %get-tuple-element.17 = f32[4]{0} get-tuple-element((f32[4]{0}, f32[4]{0}) %fusion.7), index=0
+  %param.1 = f32[16]{0} parameter(1), sharding={replicated}, metadata={op_type="start" op_name="apply_grad"}
+  %get-tuple-element.19 = f32[4]{0} get-tuple-element((f32[4]{0}, f32[4]{0}) %fusion.7), index=1
+  %param.7 = f32[16]{0} parameter(3), sharding={replicated}, metadata={op_type="start" op_name="apply_grad"}
+  %fusion.6 = (f32[1,4]{1,0}, f32[1,4]{1,0}) fusion(f32[4]{0} %get-tuple-element.17, f32[16]{0} %param.1, u32[] %partition-id, f32[4]{0} %get-tuple-element.19, f32[16]{0} %param.7), kind=kLoop, calls=%fused_computation.6
+  %get-tuple-element.4 = f32[1,4]{1,0} get-tuple-element((f32[1,4]{1,0}, f32[1,4]{1,0}) %fusion.6), index=0
+  %param.12 = f32[4,16]{1,0} parameter(8), sharding={devices=[4,1]0,1,2,3}, metadata={op_type="start" op_name="apply_grad"}
+  %param.11 = f32[16,16]{1,0} parameter(13), sharding={replicated}, metadata={op_type="start" op_name="apply_grad"}
+  %param.6 = f32[4,16]{1,0} parameter(6), sharding={devices=[4,1]0,1,2,3}, metadata={op_type="start" op_name="apply_grad"}
+  %param.5 = f32[16,16]{1,0} parameter(11), sharding={replicated}, metadata={op_type="start" op_name="apply_grad"}
+  %fusion.1 = (f32[4,16]{1,0}, f32[4,16]{1,0}) fusion(f32[4,16]{1,0} %param.12, f32[16,16]{1,0} %param.11, u32[] %partition-id, f32[4,16]{1,0} %param.6, f32[16,16]{1,0} %param.5), kind=kLoop, calls=%fused_computation.1, metadata={op_type="add" op_name="parallelize(train_step_shard_parallel)/add" source_file="/data/morinaga/cache/pypoetry/virtualenvs/gob-gyPZHm3D-py3.8/lib/python3.8/site-packages/optax/_src/transform.py" source_line=70}
+  %get-tuple-element.20 = f32[4,16]{1,0} get-tuple-element((f32[4,16]{1,0}, f32[4,16]{1,0}) %fusion.1), index=0
+  %param.10 = f32[16,16]{1,0} parameter(4), sharding={replicated}, metadata={op_type="start" op_name="apply_grad"}
+  %get-tuple-element.18 = f32[4,16]{1,0} get-tuple-element((f32[4,16]{1,0}, f32[4,16]{1,0}) %fusion.1), index=1
+  %param.4 = f32[16,16]{1,0} parameter(2), sharding={replicated}, metadata={op_type="start" op_name="apply_grad"}
+  %fusion = (f32[1,4,16]{2,1,0}, f32[1,4,16]{2,1,0}) fusion(f32[4,16]{1,0} %get-tuple-element.20, f32[16,16]{1,0} %param.10, u32[] %partition-id, f32[4,16]{1,0} %get-tuple-element.18, f32[16,16]{1,0} %param.4), kind=kLoop, calls=%fused_computation
+  %get-tuple-element.1 = f32[1,4,16]{2,1,0} get-tuple-element((f32[1,4,16]{2,1,0}, f32[1,4,16]{2,1,0}) %fusion), index=1
+  %get-tuple-element.5 = f32[1,4]{1,0} get-tuple-element((f32[1,4]{1,0}, f32[1,4]{1,0}) %fusion.6), index=1
+  %get-tuple-element = f32[1,4,16]{2,1,0} get-tuple-element((f32[1,4,16]{2,1,0}, f32[1,4,16]{2,1,0}) %fusion), index=0
+  %all-gather.4 = (f32[4,4]{1,0}, f32[4,4,16]{2,1,0}, f32[4,4]{1,0}, f32[4,4,16]{2,1,0}) all-gather(f32[1,4]{1,0} %get-tuple-element.4, f32[1,4,16]{2,1,0} %get-tuple-element.1, f32[1,4]{1,0} %get-tuple-element.5, f32[1,4,16]{2,1,0} %get-tuple-element), channel_id=1, replica_groups={{0,1,2,3}}, dimensions={0}, use_global_device_ids=true
+  %get-tuple-element.8 = f32[4,4]{1,0} get-tuple-element((f32[4,4]{1,0}, f32[4,4,16]{2,1,0}, f32[4,4]{1,0}, f32[4,4,16]{2,1,0}) %all-gather.4), index=0
+  %bitcast.1 = f32[16]{0} bitcast(f32[4,4]{1,0} %get-tuple-element.8)
+  %get-tuple-element.9 = f32[4,4,16]{2,1,0} get-tuple-element((f32[4,4]{1,0}, f32[4,4,16]{2,1,0}, f32[4,4]{1,0}, f32[4,4,16]{2,1,0}) %all-gather.4), index=1
+  %bitcast.3 = f32[16,16]{1,0} bitcast(f32[4,4,16]{2,1,0} %get-tuple-element.9)
+  %get-tuple-element.10 = f32[4,4]{1,0} get-tuple-element((f32[4,4]{1,0}, f32[4,4,16]{2,1,0}, f32[4,4]{1,0}, f32[4,4,16]{2,1,0}) %all-gather.4), index=2
+  %bitcast.5 = f32[16]{0} bitcast(f32[4,4]{1,0} %get-tuple-element.10)
+  %get-tuple-element.11 = f32[4,4,16]{2,1,0} get-tuple-element((f32[4,4]{1,0}, f32[4,4,16]{2,1,0}, f32[4,4]{1,0}, f32[4,4,16]{2,1,0}) %all-gather.4), index=3
+  %bitcast.7 = f32[16,16]{1,0} bitcast(f32[4,4,16]{2,1,0} %get-tuple-element.11)
+  %param.13 = f32[] parameter(9), sharding={replicated}, metadata={op_type="start" op_name="apply_grad"}
+  %constant_2 = f32[] constant(0.5), metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div"}
+  %multiply.17 = f32[] multiply(f32[] %param.13, f32[] %constant_2), metadata={op_type="div" op_name="parallelize(train_step_shard_parallel)/div"}
+  ROOT %tuple.5 = (s32[], f32[16]{0}, f32[16,16]{1,0}, f32[16]{0}, f32[16,16]{1,0}, /*index=5*/f32[4]{0}, f32[4,16]{1,0}, f32[4]{0}, f32[4,16]{1,0}, f32[]) tuple(s32[] %add.0, f32[16]{0} %bitcast.1, f32[16,16]{1,0} %bitcast.3, f32[16]{0} %bitcast.5, f32[16,16]{1,0} %bitcast.7, /*index=5*/f32[4]{0} %get-tuple-element.17, f32[4,16]{1,0} %get-tuple-element.18, f32[4]{0} %get-tuple-element.19, f32[4,16]{1,0} %get-tuple-element.20, f32[] %multiply.17)
+}
+

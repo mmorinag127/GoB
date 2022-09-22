@@ -1,17 +1,37 @@
+from copy import deepcopy
 import jax.numpy as jnp
 import numpy as np
 import haiku as hk
 
 def make_model(config, mp_policy):
     model_type = config.setup.model
+    head_type = config.setup.head
+    moe_type = config.setup.MoE
     
-    from .metaformer import make_metaformer
+    if moe_type is not None:
+        model_args = deepcopy(config.model[model_type])
+        model_args['MoE'] = config.MoE[moe_type]
     
-    def _forward(image, training, check = None):
-        #image = batch['image']
-        #prop  = batch['prop']
-        model = make_metaformer(**config.model[model_type])
-        return model(image, training = training, check = check)#, prop = prop)
+    
+    if 'GoB' in model_type:
+        from .go_beyond import make_go_beyond as make_model
+        from .go_beyond import make_gob_head as make_head
+    else:
+        from .metaformer import make_metaformer as make_model
+        from .metaformer import make_head as make_head
+    
+    def _forward(batch, training, check = None):
+        image = batch['image']
+        prop  = batch['prop']
+        aux = None
+        model = make_model(**model_args)
+        out =  model(image, prop, training = training, check = check)#, prop = prop)
+        if type(out) is tuple:
+            out, aux = out
+        out = make_head(**config.head[head_type])(out, training)
+        if aux is not None:
+            return out, aux
+        return out
     
     forward = hk.transform_with_state(_forward)
     return forward

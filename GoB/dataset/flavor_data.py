@@ -1,4 +1,5 @@
-from operator import is_
+#from operator import is_
+#from xml.sax.handler import feature_external_ges
 import tensorflow.compat.v2 as tf
 import numpy as np
 
@@ -24,7 +25,7 @@ def _int64_feature(value):
 def _bytes_feature(value):
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
-def serialize_sample(image, prop, label):
+def serialize_image(image, prop, label):
     image_list = _bytes_feature(image.astype(np.float32).tobytes())
     prop_list = _bytes_feature(prop.astype(np.float32).tobytes())
     label_list = _int64_feature(label)
@@ -40,7 +41,7 @@ def serialize_sample(image, prop, label):
     }))
     return proto.SerializeToString()
 
-def deserialize(serialized_example, is_prop = False):
+def deserialize_image(serialized_example, is_prop = False):
     features = tf.io.parse_single_example(
         serialized_example,
         features={
@@ -68,3 +69,30 @@ def deserialize(serialized_example, is_prop = False):
         data = {'image':image, 'label':label}
     return data
 
+def serialize_graph(points, features, label):
+    points_list = _bytes_feature(points.astype(np.float32).tobytes())
+    features_list = _bytes_feature(features.astype(np.float32).tobytes())
+    label_list = _int64_feature(label)
+    
+    proto = tf.train.Example(features=tf.train.Features(feature={
+        'points': points_list, 
+        'features': features_list, 
+        'label': label_list 
+    }))
+    return proto.SerializeToString()
+
+def deserialize_graph(serialized_example):
+    example = tf.io.parse_single_example(
+        serialized_example,
+        features={
+            'points'   : tf.io.RaggedFeature([], tf.string),
+            'features' : tf.io.RaggedFeature([], tf.string),
+            'label' : tf.io.FixedLenFeature([], tf.int64),
+        })
+    
+    points  = tf.io.decode_raw(example['points'],  tf.float32, name = 'points')
+    features  = tf.io.decode_raw(example['features'],  tf.float32, name = 'features')
+    
+    label = tf.cast(example['label'],  tf.int32)
+    
+    return {'points':points, 'features':features,  'label':label}

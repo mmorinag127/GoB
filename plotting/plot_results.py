@@ -230,14 +230,14 @@ def plot_1d_eff(X, Y, var, figname, is_norm = False):
     plt.close()
     print(f'{figname} is done...')
 
-def make_MoE_plot(labels, ew, figname):
+def make_MoE_plot(labels, ew, figname, cbar_lim = None):
     
     fig = plt.figure(figsize=(6.0, 6.0) )
     gs = fig.add_gridspec(nrows = 1, hspace=0)
     ax = gs.subplots(sharex=True, sharey=True)
     cmap = 'nord_mono_blue'
     
-    im = ax.imshow(ew, interpolation='nearest', cmap = cmap)
+    im = ax.imshow(ew, interpolation='nearest', cmap = cmap, vmin = cbar_lim[0], vmax = cbar_lim[1])
     
     # We want to show all ticks...
     ax.set(xticks = np.arange(ew.shape[1]), yticks = np.arange(ew.shape[0]),
@@ -245,6 +245,9 @@ def make_MoE_plot(labels, ew, figname):
             title = 'Average Expert Weight' )
     ax.set_xlabel('Expert Index', fontsize=16)
     ax.set_ylabel('Class Label',  fontsize=16)
+    ax.set_yticks(np.arange(ew.shape[0]), labels=[labels[i] for i in range(ew.shape[0])])
+    ax.yaxis.set_ticks_position('none') 
+    ax.xaxis.set_ticks_position('none') 
     
     # Rotate the tick labels and set their alignment.
     #plt.setp(ax.get_xticklabels(), rotation = 45, ha = "right", rotation_mode="anchor")
@@ -487,6 +490,8 @@ def main(opts):
     
     
     jet_labels = ['g-jet', 'd-jet', 'u-jet', 's-jet', 'c-jet', 'b-jet'] 
+    jet_labels = ['b-jet', 'c-jet', 's-jet', 'ud-jet', 'g-jet']
+    
     workdir = opts.workdir
     print(workdir)
     fig_dir = f'{workdir}/figs'
@@ -504,7 +509,7 @@ def main(opts):
     print('labels.shape', labels.shape)
     
     expert_weights = None
-    if opts.isMoE:
+    if not opts.isNotMoE:
         expert_weights = open_npz(f'{workdir}/eval-outputs.npz', xlist=['expert_weights'])[0]
         print('expert_weights.shape', expert_weights.shape)
         mkdir(f'{fig_dir}/MoE')
@@ -519,43 +524,44 @@ def main(opts):
         vars.register(name = f'score-{jet_label}',   label = f'{jet_label} score',    bins = 50, range = [ 0,1.0], values = probs[i],   is_log = True)
     
     
-    #vars.plot_1d(figname = f'{fig_dir}/hist1d')
+    vars.plot_1d(figname = f'{fig_dir}/hist1d')
     #vars.plot_2d(figname = f'{fig_dir}/hist2d')
     
     # ROC
-    # make_roc_curve(jet_labels, probs, labels, fig_dir = f'{fig_dir}/ROC/all')
+    make_roc_curve(jet_labels, probs, labels, fig_dir = f'{fig_dir}/ROC/all')
     
     # make_roc_curve_2(probs, labels, sig_label = 'b-jet',  bkg_labels = ['c-jet', 'udsg-jet', 'udsgc-jet'],      fig_dir = f'{fig_dir}/ROC/b-jet')
     # make_roc_curve_2(probs, labels, sig_label = 'c-jet',  bkg_labels = ['b-jet', 'udsg-jet', 'udsgb-jet'],      fig_dir = f'{fig_dir}/ROC/c-jet')
     # make_roc_curve_2(probs, labels, sig_label = 'g-jet',  bkg_labels = ['ud-jet', 'uds-jet', 'b-jet', 'c-jet'], fig_dir = f'{fig_dir}/ROC/g-jet')
     # make_roc_curve_2(probs, labels, sig_label = 's-jet',  bkg_labels = ['ud-jet', 'g-jet', 'udg-jet'],          fig_dir = f'{fig_dir}/ROC/s-jet')
     # make_roc_curve_2(probs, labels, sig_label = 'l-jet',  bkg_labels = ['g-jet', 'b-jet', 'c-jet'],             fig_dir = f'{fig_dir}/ROC/l-jet')
-    topK = 6
     if expert_weights is not None:
+        ews = []
+        
         n_layer = expert_weights.shape[1]
         print(expert_weights.shape)
         for idx in range(n_layer):
             ew = expert_weights[:, idx]
-            print(idx)
-            print('ew  : ', ew.shape)
-            #ew, _ = jax.lax.top_k(ew, k=1)
+            # ewsum = np.sum(ew, axis = (0, 1))
+            # m = np.mean(ewsum)
+            # s = np.std(ewsum)
             ew = np.sum(ew, axis=1)/ew.shape[1]
             
-            #ew = np.mean(ew, axis = 1)
-            
-            print(ew[10])
-            input('Enter')
-            
-            
-            
-            
-            ews = []
+            _ew = []
             for i in range(len(jet_labels)):
                 mask = labels == i
-                ews.append(np.mean(ew[mask], axis=0))
-            ew = np.stack(ews)
-            print(ew.shape)
-            make_MoE_plot(jet_labels, ew, figname = f'{fig_dir}/MoE/expert_weights_layer{idx}.png')
+                # print(ew[mask].shape)
+                # _ew_i = ew[mask]/np.sum(ew[mask], axis=-1, keepdims=True)
+                m = np.mean(ew[mask], axis=0)
+                _ew.append(m)
+                
+            ew = np.stack(_ew)
+            ews.append(ew)
+            pass
+        Max = max(np.max(ew) for ew in ews)
+        Min = min(np.min(ew) for ew in ews)
+        for idx in range(n_layer):
+            make_MoE_plot(jet_labels, ews[idx], figname = f'{fig_dir}/MoE/expert_weights_layer{idx}.png', cbar_lim = [Min, Max])
     
     # confusion matrix
     from sklearn.metrics import confusion_matrix
@@ -727,7 +733,7 @@ if __name__ == '__main__':
     # parser.add_argument('-i',  '--id',         action = 'store', dest = 'id',         type = str, default = None)
     parser.add_argument('-mn', '--model_name', action = 'store', dest = 'model_name', type = str, default = 'nominal')
     parser.add_argument('-w', '--workdir',     action = 'store', dest = 'workdir',    type = str, default = None)
-    parser.add_argument('-m', '--isMoE',       action = 'store', dest = 'isMoE',      type = bool, default = True)
+    parser.add_argument('-m', '--isNotMoE',       action = 'store_true', dest = 'isNotMoE')
 
     opts = parser.parse_args()
     

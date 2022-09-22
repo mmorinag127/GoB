@@ -1,5 +1,6 @@
 
 
+import functools
 import math
 # from pkgutil import read_code
 
@@ -10,8 +11,8 @@ import numpy as np
 
 import tensorflow.compat.v2 as tf
 
-from .utils import prefetch_to_device, prepare_tf_data
-from .flavor_data import deserialize
+#from .utils import prefetch_to_device, prepare_tf_data
+from .flavor_data import deserialize_image
 
 def make_preprocess_image(file, eps = 1e-9):
     
@@ -39,7 +40,7 @@ def make_preprocess_label(table):
 
 def make_preprocess_prop(table):
     def preprocess_prop(example):
-        prop = tf.cast(tf.gather(example['prop'], table), tf.int32)
+        prop = tf.cast(tf.gather(example['prop'], table), tf.float32)
         example['prop'] = prop
         return example
     return preprocess_prop
@@ -109,7 +110,7 @@ def make_dataset(data_name, phase, split, batch_size, dtype, label_table, prop_t
     ds = ds.enumerate().filter(ds_split.filter(), name = ds_split.name)
     def de_enumerate(i,x):
         return x
-    ds = ds.map(de_enumerate, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'de_enumetate')
+    ds = ds.map(de_enumerate, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'de_enumerate')
     
     # Only cache if we are reading a subset of the dataset.
     if cache and 'test' in phase:
@@ -120,10 +121,11 @@ def make_dataset(data_name, phase, split, batch_size, dtype, label_table, prop_t
         
     ds = ds.repeat()
     
-    ds = ds.map(deserialize, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'deserialize')
+    f_deserialize_image = functools.partial(deserialize_image, is_prop = True)
+    ds = ds.map(f_deserialize_image, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'deserialize_image')
     
     ds = ds.map(preprocess_image, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'preprocessing_image')
-    #ds = ds.map(preprocess_prop,  num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'preprocessing_prop')
+    ds = ds.map(preprocess_prop,  num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'preprocessing_prop')
     ds = ds.map(preprocess_label, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'preprocessing_label')
     
     if transpose:

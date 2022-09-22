@@ -7,6 +7,20 @@ import einops
 
 def make_patch_layer(patch_size, dim):
     def patch_layer(image):
+        patch = einops.rearrange(image, 'b (h p1) (w p2) c -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size)
+        # B, H, W, C = image.shape
+        # h = H//patch_size
+        # w = W//patch_size
+        # patch = jnp.reshape(image, [B, h, patch_size, w, patch_size, C] )
+        # patch = jnp.swapaxes(patch, 2, 3)
+        # patch = jnp.reshape(patch, [B, h*w, patch_size*patch_size*C] )
+        patch = hk.Linear(dim)(patch)
+        patch = hk.LayerNorm(axis = -1, param_axis = -1, create_scale = True, create_offset = True)(patch)
+        return patch
+    return patch_layer
+
+def make_patch_embedding_layer(patch_size, dim):
+    def patch_embedding_layer(image):
         #patch = einops.rearrange(image, 'b (h p1) (w p2) c -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size)
         B, H, W, C = image.shape
         h = H//patch_size
@@ -17,7 +31,8 @@ def make_patch_layer(patch_size, dim):
         patch = hk.Linear(dim)(patch)
         patch = hk.LayerNorm(axis = -1, param_axis = -1, create_scale = True, create_offset = True)(patch)
         return patch
-    return patch_layer
+    return patch_embedding_layer
+
 
 def make_meta_layer(dim, mixing_layer, drop_path_rate, lscale, film = None, hax_aux = False):
     def meta_layer(x, training, gamma = None, beta = None):
@@ -104,17 +119,39 @@ def make_attention_layer(dim, dim_inner, dropout_rate, n_heads, qkv_bias, **kwar
         k = jnp.reshape(hk.Linear(output_size = dim_inner, with_bias = qkv_bias)(x), [B, N, n_heads, dim_head])
         v = jnp.reshape(hk.Linear(output_size = dim_inner, with_bias = qkv_bias)(x), [B, N, n_heads, dim_head])
         
+        atn = jnp.einsum('bqhd, bkhd -> bhqk', q, k)
+        atn /= np.sqrt(q.shape[-1])
+        atn = jax.nn.softmax(atn, axis=-1)
+        atn = hk.dropout(hk.next_rng_key(), dropout_rate, atn)
+        
+        out = jnp.einsum('bhqk, bkhd -> bqhd', atn, v)
+        #out = einops.rearrange(out, 'b n h c -> b n (h c)')
+        out = einops.rearrange(out, 'b q k d -> b q (k d)')
+        out = hk.Linear(output_size = dim)(out)
+        out = hk.dropout(hk.next_rng_key(), dropout_rate if training else 0, out)
+        return out
+    return attention_layer
+
+def make_attention_layer2(dim, dim_inner, dropout_rate, n_heads, qkv_bias, **kwargs):
+    def attention_layer2(x, training):
+        B, N, _ = x.shape
+        dim_head = dim_inner//n_heads
+        q = jnp.reshape(hk.Linear(output_size = dim_inner, with_bias = qkv_bias)(x), [B, N, n_heads, dim_head])
+        k = jnp.reshape(hk.Linear(output_size = dim_inner, with_bias = qkv_bias)(x), [B, N, n_heads, dim_head])
+        v = jnp.reshape(hk.Linear(output_size = dim_inner, with_bias = qkv_bias)(x), [B, N, n_heads, dim_head])
+        
         atn = jnp.einsum('b s n h, b t n h-> b n s t', q, k)
         atn /= np.sqrt(q.shape[-1])
         atn = jax.nn.softmax(atn, axis=-1)
         atn = hk.dropout(hk.next_rng_key(), dropout_rate, atn)
         
         out = jnp.einsum('b t n h, b n s t -> b s n h', v, atn)
-        out = einops.rearrange(out, 'b n h c -> b n (h c)')
+        #out = einops.rearrange(out, 'b n h c -> b n (h c)')
+        out = einops.rearrange(out, 'b s n h -> b n (h s)')
         out = hk.Linear(output_size = dim)(out)
         out = hk.dropout(hk.next_rng_key(), dropout_rate if training else 0, out)
         return out
-    return attention_layer
+    return attention_layer2
 
 def make_mixing_layer(dim, dim_inner, dropout_rate, **kwargs):
     def mixing_layer(x, training, check = None):

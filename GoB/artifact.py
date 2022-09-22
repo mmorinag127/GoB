@@ -40,6 +40,7 @@ class Artifact:
     def __init__(self, config, data_length):
         self.phases = config.phases
         self.metrics = list(config.metrics)
+        self.metrics_p = list(config.metrics_print)
         self.n_epochs = config.setup.n_epochs
         self.info_step = config.info_step
         self.name = config.setup.model_name
@@ -61,7 +62,7 @@ class Artifact:
         self.total   = {phase: 0.0 for phase in self.phases}
         self.monitor = {phase: {} for phase in self.phases}
         
-        self.best_loss = None
+        self.best_loss = float(jnp.inf)
         self.best_epoch = None
         self.count = 0
         self.postfix = ''
@@ -78,6 +79,8 @@ class Artifact:
                     self.hparams[key] = deepcopy(config.config[v][k])
             else:
                 self.hparams[key] = deepcopy(val)
+        self.hparams['model'] = deepcopy(config.model[config.setup.model])
+        
         self.hparams = flatten_nested_dict(self.hparams)
         self.step = 0
     
@@ -103,10 +106,6 @@ class Artifact:
     
     def check_best_epoch(self, epoch):
         last_loss = self.values['test']['loss']
-        if self.best_epoch is None:
-            self.best_loss = last_loss
-            self.best_epoch = epoch
-        
         is_best = False
         
         if last_loss < self.best_loss:
@@ -165,7 +164,7 @@ class Artifact:
     
     def set_pbar_postfix_str(self, is_best = None):
         postfix = ''
-        for metric in self.metrics:
+        for metric in self.metrics_p:
             ret = []
             for phase in self.phases:
                 val = self.values[phase][metric]
@@ -197,7 +196,7 @@ class Artifact:
             ret = []
             for phase in self.phases:
                 if self.monitor[phase][metric] is not None and self.monitor[phase][metric] > 0.0:
-                    r = f'{self.monitor[phase][metric]: .2f}'
+                    r = f'{self.monitor[phase][metric]: .0f}'
                     ret.append(color(phase)  + r + reset)
             if len(ret) > 0 :
                 if 'norm' not in metric:
@@ -223,9 +222,9 @@ class Artifact:
         self.count += 1
         return self.postfix
     
-    def save_checkpoint(self, run_state):
+    def save_checkpoint(self, run_state, name = 'checkpoint_best.pkl'):
         import pickle
-        checkpoint_name = f'{self.workdir}/checkpoint_best.pkl'
+        checkpoint_name = f'{self.workdir}/{name}'
         with open(checkpoint_name, 'wb') as f:
             pickle.dump(run_state, f)
         return checkpoint_name
@@ -242,14 +241,17 @@ class Artifact:
     def save_outputs(self, name):
         logits = np.concatenate(self.outputs['logit'], axis = 0)
         labels = np.concatenate(self.outputs['label'], axis = 0)
-        expert_weights = np.concatenate(self.outputs['expert_weights'], axis = 0)
         print(f'logits : {logits.shape}')
         print(f'labels : {labels.shape}')
-        print(f'expert : {expert_weights.shape}')
-        
         #props  = np.concatenate(self.outputs['prop'],  axis = 0)
         file = f'{self.workdir}/{name}.npz'
-        np.savez_compressed(file, labels = labels, logits = logits, expert_weights = expert_weights)#, props = props)
+        
+        if 'expert_weights' in self.outputs.keys():
+            expert_weights = np.concatenate(self.outputs['expert_weights'], axis = 0)
+            print(f'expert : {expert_weights.shape}')
+            np.savez_compressed(file, labels = labels, logits = logits, expert_weights = expert_weights)#, props = props)
+        else:
+            np.savez_compressed(file, labels = labels, logits = logits)
         logger.info(f'{file} is saved.')
     
 

@@ -1,8 +1,8 @@
 
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+#os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+
 
 os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
@@ -52,7 +52,9 @@ from updater import Updater, RunState
 
 def main(opts):
     # config
-    config = Config(opts, jax.process_index(), **{'setup:model': opts.model, 'setup:seed': opts.seed, 'setup:model_name': opts.model_name})
+    
+    
+    config = Config(opts, jax.process_index(), **{'setup:model': opts.model, 'setup:seed': opts.seed, 'setup:model_name': opts.model_name, 'setup:head':opts.head, 'setup:MoE':opts.MoE})
     
     # random seed
     utils.set_seed(config.setup.seed, logger = logger)
@@ -65,8 +67,6 @@ def main(opts):
     forward = make_model(config, mp_policy)
     
     batch = {'label': jnp.ones((config.batch_size,), dtype = jnp.int32), 'image': jnp.ones((config.batch_size, *config.input.image_shape), dtype = mp_policy.compute_dtype),}
-    
-    
     
     datasets = {}
     data_length = 0
@@ -82,7 +82,9 @@ def main(opts):
     loss_f = utils.make_loss(config)
     updater = Updater(forward, loss_f, optimizer, mp_policy, config.mp_nonfinite, initial_loss_scale, config.workdir, config.setup.n_class)
     
-    batch = {'label': jnp.ones((config.batch_size,), dtype = jnp.int32), 'image': jnp.ones((config.batch_size, *config.input.image_shape), dtype = mp_policy.compute_dtype),}
+    batch = {'label': jnp.ones((config.batch_size,), dtype = jnp.int32), 'image': jnp.ones((config.batch_size, *config.input.image_shape), dtype = mp_policy.compute_dtype),
+             'prop': jnp.ones((config.batch_size, *config.input.prop_shape), dtype = mp_policy.compute_dtype),
+            }
     
     rng = jax.random.PRNGKey(config.setup.seed)
     init_rng, rng = jax.random.split(rng)
@@ -90,6 +92,8 @@ def main(opts):
     
     out_rng, rng = jax.random.split(rng)
     import alpa
+    
+    
     
     if opts.local:
         assert opts.n_hosts == 1
@@ -100,10 +104,10 @@ def main(opts):
         alpa.init(cluster="ray")
         physical_mesh = alpa.get_global_cluster().get_physical_mesh(list(range(opts.n_hosts)), opts.n_devices_per_host)
     
-    as_option = alpa.AutoShardingOption()
-    as_option.force_data_parallel = True
+    # as_option = alpa.AutoShardingOption()
+    # as_option.force_data_parallel = True
     
-    # logical_mesh_shape = (4,1)
+    # logical_mesh_shape = (opts.n_devices_per_host,1)
     # logical_mesh = physical_mesh.get_logical_mesh(logical_mesh_shape)
     # method = alpa.ShardParallel(
     #     devices = logical_mesh,
@@ -127,7 +131,10 @@ def main(opts):
         executable_test  = eval_metrics.get_executable(run_state, batch, out_rng)
         batch_placement_specs['test']  = executable_test.get_input_placement_specs()[1]
     else:
-        eval_output = jax.jit(updater.eval_output_with)
+        if opts.isMoE:
+            eval_output = jax.jit(updater.eval_output_with)
+        else:
+            eval_output = jax.jit(updater.eval_output)
         #executable_test  = eval_output.get_executable(run_state, batch, out_rng)
         batch_placement_specs['test']  = None
     
@@ -196,7 +203,7 @@ def main(opts):
                 
                 if artifact.end_of_epoch(epoch,  jax.tree_map(lambda x: x[0], run_state.params)):
                     c_params, c_state, c_opt_state, c_loss_scale = deepcopy(run_state)
-                    checkpoint_name = artifact.save_checkpoint(RunState(c_params, c_state, c_opt_state, c_loss_scale))
+                    checkpoint_name = artifact.save_checkpoint(RunState(c_params, c_state, c_opt_state, c_loss_scale), name = 'checkpoint_best.pkl')
                     mlflow.log_artifact(checkpoint_name)
                 
                 pbar.set_postfix_str(artifact.postfix)
@@ -204,6 +211,9 @@ def main(opts):
                 if config.process_idx == 0:
                     mlflow.log_metrics(artifact.get_metrics(), step = epoch)
         
+        c_params, c_state, c_opt_state, c_loss_scale = deepcopy(run_state)
+        checkpoint_name = artifact.save_checkpoint(RunState(c_params, c_state, c_opt_state, c_loss_scale), name = 'checkpoint_last.pkl')
+        mlflow.log_artifact(checkpoint_name)
         mlflow.end_run()
     #ray.stop()
     
@@ -213,15 +223,20 @@ def main(opts):
             pbar.set_description()
             for _ in range(datasets['test'].n_step):
                 data = next(datasets['test'].iter)
-                logits, _, expert_weights = eval_output(run_state, data, rng)
-                expert_weights = jnp.swapaxes(expert_weights, 0, 1)
+                if opts.isMoE:
+                    logits, _, expert_weights = eval_output(run_state, data, rng)
+                    expert_weights = jnp.swapaxes(expert_weights, 0, 1)
+                    artifact.add_x(jax.device_get(expert_weights), 'expert_weights', shape = expert_weights.shape)
+                else:
+                    logits, _ = eval_output(run_state, data, rng)
+                
                 # print(expert_weights[0])
                 # input('enter')
                 labels = jax.device_get(data['label'])
                 #artifact.add_x(jax.device_get(data['prop']),  'prop')
                 artifact.add_x(labels,                         'label', shape = [labels.shape[0], ])
                 artifact.add_x(jax.device_get(logits),         'logit')
-                artifact.add_x(jax.device_get(expert_weights), 'expert_weights', shape = expert_weights.shape)
+                
                 pbar.update(1)
         
         artifact.save_outputs('eval-outputs')
@@ -240,16 +255,21 @@ if __name__ == "__main__":
     parser.add_argument('-m',  '--model',        action = 'store', dest = 'model',              type = str,  default = None)
     parser.add_argument('-md', '--mode',         action = 'store', dest = 'mode',               type = str,  default = 'nominal')
     parser.add_argument('-mn', '--model_name',   action = 'store', dest = 'model_name',         type = str,  default = 'nominal')
+    parser.add_argument('-he', '--head'      ,   action = 'store', dest = 'head',               type = str,  default = 'MLP-S-1')
+    parser.add_argument('-mo', '--moe',          action = 'store', dest = 'MoE',                type = str,  default = None)
     parser.add_argument('-e',  '--experiment',   action = 'store', dest = 'experiment_name',    type = str,  default = None)
     parser.add_argument('-r',  '--run_name',     action = 'store', dest = 'run_name',           type = str,  default = None)
     parser.add_argument('-l',  '--local',        action = 'store', dest = 'local',              type = bool, default = True)
-    parser.add_argument('-nd', '--n_device',     action = 'store', dest = 'n_devices_per_host', type = int,  default = 4)
+    parser.add_argument('-nd', '--n_device',     action = 'store', dest = 'n_devices_per_host', type = int,  default = 1)
     parser.add_argument('-nh', '--n_hosts',      action = 'store', dest = 'n_hosts',            type = int,  default = 1)
+    parser.add_argument('-gpu','--gpuid',        action = 'store', dest = 'gpuid',              type = int,  default = None)
+    parser.add_argument('-moe','--isMoE',        action = 'store_true', dest = 'isMoE')
+    
     
     opts = parser.parse_args()
     
     main(opts)
-    
+
     #test_checkpoint()
     
     

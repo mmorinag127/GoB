@@ -26,11 +26,22 @@ class Updater:
         self._n_class = n_class
         
     def initial_state(self, batch, rng):
-        params, state = self._network.init(rng, batch['image'], training = True)
+        #params, state = self._network.init(rng, batch['image'], batch['prop'], training = True)
+        params, state = self._network.init(rng, batch, training = True)
         opt_state = self._optimizer.init(params)
         loss_scale = self._init_loss_scale()
         return RunState(params, state, opt_state, loss_scale)
-
+    
+    def apply(self, params, state, rng, batch, training, check):
+        out, state = self._network.apply(params, state, rng, batch, training = training, check = check)
+        if type(out) is tuple:
+            logits, aux_loss = out
+        else:
+            logits = out
+            aux_loss = None
+        return logits, aux_loss, state
+    
+    
     def restore_from_file(self):
         import pickle
         file = f'{self._workdir}/checkpoint_best.pkl'
@@ -48,30 +59,35 @@ class Updater:
     
     def eval_output(self, run_state, batch, rng):
         params, state, _, _ = run_state
-        (logits, aux_loss), _ = self._network.apply(params, state, rng, batch['image'], training = False, check = None)
+        #(logits, aux_loss), _ = self._network.apply(params, state, rng, batch, training = False, check = None)
+        logits, aux_loss, state = self.apply(params, state, rng, batch, training = False, check = None)
         loss = self._loss_f(logits, batch['label'], params, aux_loss = aux_loss)
         return logits, loss
     
     def eval_output_with(self, run_state, batch, rng):
         params, state, _, _ = run_state
-        (logits, aux_loss, expert_weights), _ = self._network.apply(params, state, rng, batch['image'], training = False, check = True)
+        #(logits, aux), state = self._network.apply(params, state, rng, batch, training = False, check = True)
+        logits, aux, state = self.apply(params, state, rng, batch, training = False, check = True)
+        aux_loss, expert_weights = aux
         loss = self._loss_f(logits, batch['label'], params, aux_loss = aux_loss)
         return logits, loss, expert_weights
     
     def eval_metrics(self, run_state, batch, rng):
         params, state, _, _ = run_state
-        (logits, aux_loss), _ = self._network.apply(params, state, rng, batch['image'], training = False)
+        logits, aux_loss, state = self.apply(params, state, rng, batch, training = False, check = None)
+        
         loss = self._loss_f(logits, batch['label'], params, aux_loss = aux_loss)
         one_hot_labels = jax.nn.one_hot(batch['label'], self._n_class)
         top1_acc, top2_acc = utils.topK_acc(logits, one_hot_labels, K = [1,2])
         total = batch['label'].shape[0]
-        metrics = {'loss': loss*total, 'top1_acc' : top1_acc*100., 'top2_acc' : top2_acc*100., 'total': total }
+        metrics = {'loss': loss*total, 't1_acc' : top1_acc*100., 't2_acc' : top2_acc*100., 'total': total }
         return metrics
     
     def loss_step(self, params, state, loss_scale, batch, rng):
-        (logits, aux_loss), state = self._network.apply(params, state, rng, batch['image'], training = True)
+        #(logits, aux_loss), state = self._network.apply(params, state, rng, batch, training = True)
+        logits, aux_loss, state = self.apply(params, state, rng, batch, training = True, check = None)
         loss = self._loss_f(logits, batch['label'], params, aux_loss = aux_loss)
-        return loss_scale.scale(loss), (state, )
+        return loss_scale.scale(loss), (state, aux_loss)
     
     def update_nominal(self, run_state, batch, rng):
         import alpa
@@ -81,7 +97,7 @@ class Updater:
         # grad_fn = alpa.value_and_grad(self.loss_step, has_aux = True)
         # aux, grads = grad_fn(params, state, loss_scale, batch, rng)
         
-        new_state  = aux[0]
+        new_state, aux_loss  = aux
         #(new_state, ), grads = grad_fn(params, state, loss_scale, batch, rng)
         
         grads = self._mp_policy.cast_to_compute(grads)
@@ -99,7 +115,11 @@ class Updater:
         gradient_norm = jnp.sqrt(sum([jnp.sum(jnp.square(e)) for e in jax.tree_util.tree_leaves(grads)]))
         param_norm = jnp.sqrt(sum([jnp.sum(jnp.square(e)) for e in jax.tree_util.tree_leaves(new_params) if e.ndim > 1]))
         
-        metrics = {'grad_norm':gradient_norm, 'param_norm':param_norm}
+        #metrics = {'g_norm':gradient_norm, 'p_norm':param_norm, 'a_loss': aux_loss}
+        metrics = {'g_norm':gradient_norm, 'p_norm':param_norm}
+        if aux_loss is not None:
+            metrics['a_loss'] = aux_loss
+        
         return RunState(new_params, new_state, new_opt_state, loss_scale), metrics
 
 

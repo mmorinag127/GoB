@@ -58,3 +58,12 @@ def layer_scale(x, dim, init_val):
         return param * x
     return x
 
+
+
+def make_L2softmax_layer(alpha):
+    def L2softmax_layer(x, training):
+        l2 = jnp.sqrt(jnp.sum(x**2))
+        return alpha * x / l2
+    return L2softmax_layer
+
+# def make_arcface(s, m):

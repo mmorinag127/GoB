@@ -29,11 +29,11 @@ def plot_line(x, y, best_epoch, xlabel, lims, figname):
     n_col = len(list(x['train'].keys()))
     for i, label in enumerate(x['train'].keys()):
         if n_col == 1:
-            ax.plot(x['train'][label], y['train'][label], '-',  alpha = 1.0, label = f'train: {label}', color = colors[i])
-            ax.plot(x['test'][label],  y['test'][label],  '--', alpha = 1.0, label = f'test: {label}', color = colors[i])
+            ax.plot(x['train'][label], y['train'][label], '-',  alpha = 1.0, label = f'train: {xlabel[0]}', color = colors[i])
+            ax.plot(x['test'][label],  y['test'][label],  '--', alpha = 1.0, label = f'test: {xlabel[0]}',  color = colors[i])
         else:
-            ax.plot(x['train'][label], y['train'][label], '-',  alpha = 1.0, label = f'{label}', color = colors[i])
-            ax.plot(x['test'][label],  y['test'][label],  '--', alpha = 1.0,                     color = colors[i])
+            ax.plot(x['train'][label], y['train'][label], '-',  alpha = 1.0, label = f'{xlabel[0]}', color = colors[i])
+            ax.plot(x['test'][label],  y['test'][label],  '--', alpha = 1.0,                         color = colors[i])
     
     
     if best_epoch is not None:
@@ -69,20 +69,20 @@ def plot_line(x, y, best_epoch, xlabel, lims, figname):
     plt.close()
     # print(f'{figname} is done...')
 
-def plot_history(workdir, results, metrics = ['loss', 'top1_acc', 'top2_acc', 'time', 'GPU', 'grad_norm', 'param_norm'], phases = ('test', 'train')):
+def plot_history(workdir, results, metrics = ['loss', 't1_acc', 't2_acc', 'time', 'GPU', 'g_norm', 'p_norm'], phases = ('test', 'train')):
     
     keywords = {
         'loss': ['loss'],
-        'top1_acc': ['top1 accuracy'],
-        'top2_acc': ['top2 accuracy'],
-        'top5_acc': ['top5 accuracy'],
+        't1_acc': ['top1 accuracy'],
+        't2_acc': ['top2 accuracy'],
+        't5_acc': ['top5 accuracy'],
         'lr':['learning rate'], 
         'batch_size':['batch size'], 
         'process_per_sec':['image/sec'], 
         'time':['training time [sec]'],
         'GPU': ['GPU usage(all mean) [%]'],
-        'grad_norm': ['Global Gradient Norm'],
-        'param_norm': ['Parameters Norm'],
+        'g_norm': ['Global Gradient Norm'],
+        'p_norm': ['Parameters Norm'],
     }
     keywords.update({f'GPU{i}':[f'GPU{i} usage'] for i in range(8)})
     
@@ -91,7 +91,6 @@ def plot_history(workdir, results, metrics = ['loss', 'top1_acc', 'top2_acc', 't
 
     if not os.path.exists(f'{workdir}/history'):
         os.makedirs(f'{workdir}/history')
-    
     
     Xs, Ys = {}, {}
     
@@ -140,7 +139,7 @@ def main(opts):
     
     
     #print(data)
-    metrics = ['loss', 'top1_acc', 'top2_acc', 'time', 'GPU', 'grad_norm', 'param_norm']
+    metrics = ['loss', 't1_acc', 't2_acc', 'time', 'GPU', 'g_norm', 'p_norm']
     X, Y = plot_history(opts.workdir, data[0], metrics = metrics)
     return X, Y
 

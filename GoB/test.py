@@ -362,7 +362,30 @@ def test_jax1():
     
     #patch = einops.rearrange(a, 'b (h p1) (w p2) c -> b (h w) (p1 p2 c)', p1 = 4, p2 = 4)
     #print(patch.shape)
+
+def test_patch():
     
+    H = 8
+    W = 8
+    P = 4
+    h = H//P
+    w = W//P
+    print(h,w)
+    image = jnp.reshape(jnp.arange(H*W), [H,W,1])
+    print(image)
+    
+    patch = jnp.reshape(image, [h,P,w,P,1])
+    patch = jnp.reshape(patch, [h*w,P*P])
+    print(patch)
+    
+    
+    import einops
+    patch2 = einops.rearrange(image, '(h p1) (w p2) C -> (h w) (p1 p2 C)', p1 = P, p2 = P)
+    print(patch2)
+    
+    
+    
+
 
     
 if __name__ == '__main__':
@@ -376,7 +399,8 @@ if __name__ == '__main__':
     #test_pytree()
     #test_GPUtil()
     #test_dict()
-    test_jax1()
+    #test_jax1()
+    test_patch()
     
     
     
