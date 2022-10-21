@@ -30,8 +30,12 @@ def make_metaformer(model, patch_size, depth, dim, expansion, dropout, drop_path
         else:
             raise ValueError(f'moe_type:{moe_type} is not supported!!')
     
-    def metaformer(x, prop, training, check = None):
-        dropout_rate = dropout if training else 0
+    film_args = None
+    if 'FiLM' in kwargs.keys():
+        film_args = deepcopy(kwargs['FiLM'])
+    
+    def metaformer(x, gamma = None, beta = None, training = True, check = None):
+        #dropout_rate = dropout if training else 0.0
         out = make_patch_layer(patch_size, dim)(x)
         if patch_emb_layer is not None:
             out = patch_emb_layer(**kwargs)(out, training)
@@ -39,21 +43,22 @@ def make_metaformer(model, patch_size, depth, dim, expansion, dropout, drop_path
         drop_path_rate = make_drop_path_rate(depth, drop_path)
         total_aux_loss = 0.
         expert_weights = []
+        
         for idx in range(depth):
-            droppath_rate = drop_path_rate[idx] if training else 0.0
-            out = make_meta_layer(dim, make_token_mixing_layer(dim, dim_inner, dropout_rate, **kwargs), droppath_rate, layer_scale)(out, training)
+            droppath_rate = drop_path_rate[idx]
+            out = make_meta_layer(dim, make_token_mixing_layer(dim, dim_inner, dropout, **kwargs), droppath_rate, layer_scale)(out, training, gamma = gamma, beta = beta)
             if moe_cycle is not None and (idx+1) % moe_cycle == 0:
-                layer = make_MoE_layer(make_mixing_layer(dim, dim_inner, dropout_rate), **moe_args)
+                layer = make_MoE_layer(make_mixing_layer(dim, dim_inner, dropout), **moe_args)
                 if check is not None and check:
                     out, aux_loss, expert_weight = make_meta_layer_with(dim, layer, droppath_rate, layer_scale, hax_aux = True)(out, training, check = True)
                     expert_weights.append(expert_weight)
                 else:
-                    out, aux_loss = make_meta_layer(dim, layer, droppath_rate, layer_scale, hax_aux = True)(out, training)
+                    out, aux_loss = make_meta_layer(dim, layer, droppath_rate, layer_scale, film = film_args, hax_aux = True)(out, training)
                     
                 total_aux_loss += aux_loss
                 
             else:
-                out = make_meta_layer(dim, make_mixing_layer(dim, dim_inner, dropout_rate, **kwargs), droppath_rate, layer_scale)(out, training)
+                out = make_meta_layer(dim, make_mixing_layer(dim, dim_inner, dropout, **kwargs), droppath_rate, layer_scale)(out, training, gamma = gamma, beta = beta)
         
         out = hk.LayerNorm(axis = -1, param_axis = -1, create_scale = True, create_offset = True)(out)
         out = jnp.mean(out, axis=1)
@@ -71,13 +76,12 @@ def make_head(model, depth, dim, expansion, dropout, n_classes, **kwargs):
     
     dim_inner = dim*expansion
     
-    def head(x, training):
+    def head(x, gamma = None, beta = None, training = True):
         dropout_rate = dropout if training else 0
         out = x
         
         for idx in range(depth):
-            out = hk.LayerNorm(axis=-1,create_scale=True,create_offset=True)(out)
-            out = out + make_mixing_layer(dim, dim_inner, dropout_rate)(out, training)
+            out = make_meta_layer(dim, make_mixing_layer(dim, dim_inner, dropout_rate), None, None)(out, training = training, gamma = gamma, beta = beta)
         
         out = hk.LayerNorm(axis=-1,create_scale=True,create_offset=True)(out)
         out = hk.Linear(output_size = n_classes, b_init = hk.initializers.Constant(-2.0) )(out)
@@ -88,6 +92,19 @@ def make_head(model, depth, dim, expansion, dropout, n_classes, **kwargs):
 
 
 
-
+def make_embedding_layer(dim):
+    def embedding_layer(x, prop, training):
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        return x
 
 

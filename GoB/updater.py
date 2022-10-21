@@ -14,6 +14,7 @@ class RunState(NamedTuple):
     state: hk.State
     opt_state: optax.OptState
     loss_scale: jmp.LossScale
+
 class Updater:
     def __init__(self, network, loss_f, optimizer, mp_policy, mp_nonfinite, init_loss_scale, workdir, n_class):
         self._network = network
@@ -25,9 +26,11 @@ class Updater:
         self._workdir = workdir
         self._n_class = n_class
         
-    def initial_state(self, batch, rng):
-        #params, state = self._network.init(rng, batch['image'], batch['prop'], training = True)
-        params, state = self._network.init(rng, batch, training = True)
+    def initial_state(self, batch, rng, training):
+        params, state = self._network.init(rng, batch, training = training)
+        #params, state = jax.jit(self._network.init)(rng, batch, training = True)
+        #jinit = jax.jit(self._network.init)
+        #params, state = jinit(rng, batch = batch, training = True)
         opt_state = self._optimizer.init(params)
         loss_scale = self._init_loss_scale()
         return RunState(params, state, opt_state, loss_scale)
@@ -40,7 +43,6 @@ class Updater:
             logits = out
             aux_loss = None
         return logits, aux_loss, state
-    
     
     def restore_from_file(self):
         import pickle
@@ -59,14 +61,12 @@ class Updater:
     
     def eval_output(self, run_state, batch, rng):
         params, state, _, _ = run_state
-        #(logits, aux_loss), _ = self._network.apply(params, state, rng, batch, training = False, check = None)
         logits, aux_loss, state = self.apply(params, state, rng, batch, training = False, check = None)
         loss = self._loss_f(logits, batch['label'], params, aux_loss = aux_loss)
         return logits, loss
     
     def eval_output_with(self, run_state, batch, rng):
         params, state, _, _ = run_state
-        #(logits, aux), state = self._network.apply(params, state, rng, batch, training = False, check = True)
         logits, aux, state = self.apply(params, state, rng, batch, training = False, check = True)
         aux_loss, expert_weights = aux
         loss = self._loss_f(logits, batch['label'], params, aux_loss = aux_loss)
@@ -75,7 +75,6 @@ class Updater:
     def eval_metrics(self, run_state, batch, rng):
         params, state, _, _ = run_state
         logits, aux_loss, state = self.apply(params, state, rng, batch, training = False, check = None)
-        
         loss = self._loss_f(logits, batch['label'], params, aux_loss = aux_loss)
         one_hot_labels = jax.nn.one_hot(batch['label'], self._n_class)
         top1_acc, top2_acc = utils.topK_acc(logits, one_hot_labels, K = [1,2])
@@ -84,7 +83,6 @@ class Updater:
         return metrics
     
     def loss_step(self, params, state, loss_scale, batch, rng):
-        #(logits, aux_loss), state = self._network.apply(params, state, rng, batch, training = True)
         logits, aux_loss, state = self.apply(params, state, rng, batch, training = True, check = None)
         loss = self._loss_f(logits, batch['label'], params, aux_loss = aux_loss)
         return loss_scale.scale(loss), (state, aux_loss)

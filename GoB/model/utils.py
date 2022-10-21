@@ -7,10 +7,18 @@ def make_model(config, mp_policy):
     model_type = config.setup.model
     head_type = config.setup.head
     moe_type = config.setup.MoE
+    film_type = config.setup.FiLM
     
-    if moe_type is not None:
-        model_args = deepcopy(config.model[model_type])
+    model_args = deepcopy(config.model[model_type])
+    
+    
+    if moe_type is not None and moe_type != 'None':
         model_args['MoE'] = config.MoE[moe_type]
+    
+    film_args = None
+    if film_type is not None and film_type != 'None':
+        film_args = config.FiLM[film_type]
+        from .token_mixing import make_film_generator
     
     
     if 'GoB' in model_type:
@@ -20,17 +28,24 @@ def make_model(config, mp_policy):
         from .metaformer import make_metaformer as make_model
         from .metaformer import make_head as make_head
     
-    def _forward(batch, training, check = None):
+    def _forward(batch, training = True, check = None):
         image = batch['image']
         prop  = batch['prop']
         aux = None
+        
+        gamma, beta = None, None
+        if film_args is not None:
+            gamma, beta = make_film_generator(**film_args)(prop, training = training)
+        
         model = make_model(**model_args)
-        out =  model(image, prop, training = training, check = check)#, prop = prop)
+        out =  model(image, gamma = gamma, beta = beta, training = training, check = check)
         if type(out) is tuple:
             out, aux = out
-        out = make_head(**config.head[head_type])(out, training)
+        
+        out = make_head(**config.head[head_type])(out, gamma = gamma, beta = beta, training = training)
         if aux is not None:
             return out, aux
+        
         return out
     
     forward = hk.transform_with_state(_forward)

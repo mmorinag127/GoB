@@ -1,10 +1,11 @@
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
 import tensorflow.compat.v2 as tf
-
+tf.config.experimental.set_visible_devices([], 'GPU')
+gpus = tf.config.experimental.list_physical_devices('GPU')
 
 import numpy as np
 import time
@@ -383,7 +384,71 @@ def test_patch():
     patch2 = einops.rearrange(image, '(h p1) (w p2) C -> (h w) (p1 p2 C)', p1 = P, p2 = P)
     print(patch2)
     
+def test_patch2():
     
+    H = 8
+    W = 8
+    P = 4
+    h = H//P
+    w = W//P
+    C = 3
+    print(h,w)
+    image = jnp.reshape(jnp.arange(H*W*C), [H,W,C])
+    _image = jnp.reshape(jnp.arange(H*W), [H,W])
+    print('image : ')
+    print(_image)
+    
+    patch = jnp.reshape(image, [h,P,w,P,C])
+    # print('patch1 : 1')
+    # print(patch)
+    patch = jnp.reshape(patch, [h*w,P*P*C])
+    print('patch1 :')
+    print(patch)
+    
+    
+    import einops
+    patch2 = einops.rearrange(image, '(h p1) (w p2) C -> (h w) (p1 p2 C)', p1 = P, p2 = P)
+    print('patch2 : ')
+    print(patch2)
+    
+    
+    patch3 = jnp.expand_dims(image, 1)
+    patch3 = jnp.reshape(patch3, [h,P,W,C])
+    patch3 = jnp.expand_dims(patch3, 3)
+    patch3 = jnp.reshape(patch3, [h,P,w,P,C])
+    patch3 = jnp.swapaxes(patch3, 1, 2)
+    patch3 = jnp.reshape(patch3, [h*w, P*P*C])
+    print('patch3 :', patch3.shape)
+    print(patch3)
+    
+    patch4 = jnp.expand_dims(image, [1,2])
+    patch4 = jnp.reshape(patch4, [h,P,w,P,C])
+    patch4 = jnp.swapaxes(patch4, 1, 2)
+    patch4 = jnp.reshape(patch4, [h*w, P*P*C])
+    print('patch4 :', patch4.shape)
+    print(patch4)
+
+
+
+
+
+def test_imshow():
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots()
+    x = np.zeros([5,5])
+    
+    eta_idx = [1,2,0,3]
+    phi_idx = [0,2,4,1]
+    p = [1,2,3,4]
+    
+    x[eta_idx, phi_idx] = p
+    im = ax.imshow(x, origin='lower')
+    
+    for i in range(x.shape[0]):
+        for j in range(x.shape[1]):
+            ax.text(j, i, f'{x[i, j]:.1f}', ha = "center", va = "center", color = "white")
+    plt.colorbar(im)
+    plt.savefig('figs/test_imshow.png', dpi=300)
     
 
 
@@ -400,8 +465,9 @@ if __name__ == '__main__':
     #test_GPUtil()
     #test_dict()
     #test_jax1()
-    test_patch()
-    
+    #test_patch()
+    test_patch2()
+    #test_imshow()
     
     
     

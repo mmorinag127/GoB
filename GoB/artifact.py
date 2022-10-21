@@ -238,20 +238,20 @@ class Artifact:
         xx = jnp.reshape(x, shape)
         self.outputs[name].append(xx)
     
-    def save_outputs(self, name):
-        logits = np.concatenate(self.outputs['logit'], axis = 0)
-        labels = np.concatenate(self.outputs['label'], axis = 0)
-        print(f'logits : {logits.shape}')
-        print(f'labels : {labels.shape}')
-        #props  = np.concatenate(self.outputs['prop'],  axis = 0)
+    def save_outputs(self, name, xlists = ['logit', 'label']):
+        dic = {}
+        for key in xlists:
+            x = np.concatenate(self.outputs[key], axis = 0)
+            dic[key] = x
+            print(f'{key} : {x.shape}')
+        
         file = f'{self.workdir}/{name}.npz'
         
         if 'expert_weights' in self.outputs.keys():
             expert_weights = np.concatenate(self.outputs['expert_weights'], axis = 0)
             print(f'expert : {expert_weights.shape}')
-            np.savez_compressed(file, labels = labels, logits = logits, expert_weights = expert_weights)#, props = props)
-        else:
-            np.savez_compressed(file, labels = labels, logits = logits)
+            dic['expert_weights'] = expert_weights
+        np.savez_compressed(file, **dic)
         logger.info(f'{file} is saved.')
     
 

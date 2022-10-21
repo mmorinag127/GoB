@@ -117,9 +117,9 @@ def make_dataset(data_name, phase, split, batch_size, dtype, label_table, prop_t
         ds = ds.cache('data/cache/test2.tfrecord')
     
     if 'train' in phase:
+        ds = ds.repeat()
         ds = ds.shuffle(buffer_size = 16*batch_size*n_device, seed = 0)
-        
-    ds = ds.repeat()
+    
     
     f_deserialize_image = functools.partial(deserialize_image, is_prop = True)
     ds = ds.map(f_deserialize_image, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'deserialize_image')
@@ -148,7 +148,11 @@ def make_dataset(data_name, phase, split, batch_size, dtype, label_table, prop_t
     
     ds = ds.batch(batch_size*n_device, drop_remainder = 'train' in phase)
     #ds = ds.prefetch(tf.data.experimental.AUTOTUNE, name = 'prefetch')
+    if 'train' not in phase:
+        ds = ds.repeat()
+    
     ds = ds.prefetch(16, name = 'prefetch')
+    
     
     #it = map(prepare_tf_data, ds)
     #it = prefetch_to_device(it, n_prefetch)

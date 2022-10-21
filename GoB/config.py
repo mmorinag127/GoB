@@ -46,13 +46,13 @@ class Config:
         if self.mode.training():
             self.make_config(path = opts.config, **kwargs)
             self.exp_dir = f'results/{self.experiment_name}'
-            self.run_name = f'{self.config.setup.model}-{self.config.setup.MoE}-{self.config.setup.head}/{self.run_name}'
+            self.run_name = f'{self.config.setup.model}-{self.config.setup.MoE}-{self.config.setup.FiLM}-{self.config.setup.head}/{self.run_name}'
             self.workdir = f'{self.exp_dir}/{self.run_name}-{self.config.seed}'
             self.make_workdir()
             self.save_config(opts.model_name)
         else:
             self.exp_dir = f'results/{self.experiment_name}'
-            self.run_name = f'{opts.model}-{opts.MoE}-{opts.head}/{self.run_name}'
+            self.run_name = f'{opts.model}-{opts.MoE}-{opts.FiLM}-{opts.head}/{self.run_name}'
             self.workdir = f'{self.exp_dir}/{self.run_name}-{opts.seed}'
             
             self.make_config(f'{self.workdir}/config-{opts.model_name}.yaml', seed = opts.seed)

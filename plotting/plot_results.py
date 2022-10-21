@@ -584,11 +584,9 @@ def main_with_prop(opts):
     #norm = True
     
     
-    jet_labels = ['ud-jet', 's-jet', 'c-jet', 'b-jet', 'g-jet', 'gud-jet', 'gs-jet', 'gc-jet', 'gb-jet'] 
-    #jet_labels = ['uds-jet', 'c-jet', 'b-jet', 'g-jet', 'guds-jet', 'gc-jet', 'gb-jet'] 
-    jet_labels = ['g-jet', 'u-jet', 'd-jet', 's-jet', 'c-jet', 'b-jet'] 
-
-    #jet_labels = ['uds-jet', 'c-jet', 'b-jet', 'g-jet'] 
+    jet_labels = ['b-jet', 'c-jet', 's-jet', 'ud-jet', 'g-jet']
+    
+    
     workdir = opts.workdir
     print(workdir)
     fig_dir = f'{workdir}/figs'
@@ -598,16 +596,14 @@ def main_with_prop(opts):
     mkdir(f'{fig_dir}/hist1d-eff')
     mkdir(f'{fig_dir}/hist2d')
     
-    logits, labels, props = open_npz(f'{workdir}/eval-outputs.npz')
+    logits, labels, props = open_npz(f'{workdir}/eval-outputs.npz', xlist = ['logit', 'label', 'prop'])
     labels = labels.astype(int)
     print(logits.shape)
     print(labels.shape)
     print(props.shape)
     
-    
-    
-    
-    pt, n_charged, n_neutral = props[:, 0], props[:, 1], props[:, 2]#, props[:, 3]
+    #pt, n_charged, n_neutral = props[:, 0], props[:, 1], props[:, 2]#, props[:, 3]
+    n_charged, n_neutral = props[:, 0], props[:, 1]
     
     
     scores = softmax(sigmoid(logits))
@@ -619,7 +615,7 @@ def main_with_prop(opts):
     vars = Variables(masks)
     vars.register(name = 'n_charged', label = r'#of charged',           bins = 20, range = [ 0, 20], values = n_charged, norm = norm)
     vars.register(name = 'n_neutral', label = r'#of neutral',           bins = 20, range = [ 0, 20], values = n_neutral, norm = norm)
-    vars.register(name = 'pt',        label = r'$p_{\mathrm{T}}$[GeV]', bins = 40, range = [ 0,400], values = pt, is_log = True, norm = norm)
+    #vars.register(name = 'pt',        label = r'$p_{\mathrm{T}}$[GeV]', bins = 40, range = [15,115], values = pt, is_log = True, norm = norm)
     #vars.register(name = 'eta',       label = r'$\eta$',                bins = 60, range = [-3,  3], values = eta, norm = norm)
     for i, jet_label in enumerate(jet_labels):
         #vars.register(name = f'out-{jet_label}',     label = f'{jet_label} out',      bins = 50, range = [-7.5,1.0], values = outputs[:, i], is_log = True)
@@ -635,23 +631,15 @@ def main_with_prop(opts):
     vars2.register(name = 'n_charged', label = r'#of charged',           bins = 20, range = [ 0, 20], values = n_charged, norm = norm)
     vars2.register(name = 'n_neutral', label = r'#of neutral',           bins = 20, range = [ 0, 20], values = n_neutral, norm = norm)
     #vars2.register(name = 'eta',       label = r'$\eta$',                bins = 60, range = [-3,  3], values = eta, norm = norm)
-    vars2.register(name = 'pt',        label = r'$p_{\mathrm{T}}$[GeV]', 
-                    bins = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 125, 150, 200, 300, 400],
-                    range = [ 0,400], values = pt, is_log = True, norm = norm)
+    # vars2.register(name = 'pt',        label = r'$p_{\mathrm{T}}$[GeV]', 
+    #                 bins = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 125, 150, 200, 300, 400],
+    #                 range = [ 0,400], values = pt, is_log = True, norm = norm)
     vars2.plot_1d_eff(probs, figname = f'{fig_dir}/hist1d-eff')
     
     
     # ROC
-    make_roc_curve(jet_labels, probs, labels, sigs = None, bkgs = None, fig_dir = f'{fig_dir}/ROC/all')
     
-    make_roc_curve_2(['c-jet', 'udsg-jet', 'udsgc-jet'], probs, labels, sigs = [(4,), (4,), (4,)], bkgs = [(3,), (0,1,2), (0,1,2,3)], fig_dir = f'{fig_dir}/ROC/b-jet')
-    make_roc_curve_2(['b-jet', 'udsg-jet', 'udsgb-jet'], probs, labels, sigs = [(3,), (3,), (3,)], bkgs = [(4,), (0,1,2), (0,1,2,4)], fig_dir = f'{fig_dir}/ROC/c-jet')
-    make_roc_curve_2(['ud-jet', 'uds-jet', 'b-jet', 'c-jet'], probs, labels, sigs = [(0,), (0,)],   bkgs = [(1,), (1,2), (4,), (3,)], fig_dir = f'{fig_dir}/ROC/g-jet')
-    make_roc_curve_2(['ud-jet', 'g-jet', 'udg-jet'],     probs, labels, sigs = [(1,), (1,)],   bkgs = [(1,), (1,2)], fig_dir = f'{fig_dir}/ROC/s-jet')
-    make_roc_curve_2(['g-jet', 'b-jet', 'c-jet'],        probs, labels, sigs = [(1,2), (1,2), (1,2)], bkgs = [(0,), (4,), (3,) ], fig_dir = f'{fig_dir}/ROC/l-jet')
-    
-    
-    
+    make_roc_curve(jet_labels, probs, labels, fig_dir = f'{fig_dir}/ROC/all')
     
     # confusion matrix
     from sklearn.metrics import confusion_matrix
@@ -737,7 +725,8 @@ if __name__ == '__main__':
 
     opts = parser.parse_args()
     
-    main(opts)
+    #main(opts)
+    main_with_prop(opts)
     #plot_jet_attr(opts)
 
 

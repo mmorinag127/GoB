@@ -1,3 +1,4 @@
+from copy import deepcopy
 import math, os
 import numpy as np
 import matplotlib
@@ -22,15 +23,15 @@ colors = [nord_color.color(c) for c in ('red', 'green', 'blue', 'orange', 'viole
 colors = [nord_color.color(c) for c in ('frost green', 'green', 'yellow', 'orange', 'red',
                                         'violet', 'frost light blue',  'blue', 'light0') ]
 
-def plot_line(x, y, best_epoch, xlabel, lims, figname):
+def plot_line(x, y, best_epoch, xlabel, lims, figname, is_log = False):
     plt.figure(figsize=(8.0, 6.0))
     fig, ax = plt.subplots()
     
     n_col = len(list(x['train'].keys()))
     for i, label in enumerate(x['train'].keys()):
         if n_col == 1:
-            ax.plot(x['train'][label], y['train'][label], '-',  alpha = 1.0, label = f'train: {xlabel[0]}', color = colors[i])
-            ax.plot(x['test'][label],  y['test'][label],  '--', alpha = 1.0, label = f'test: {xlabel[0]}',  color = colors[i])
+            ax.plot(x['train'][label], y['train'][label], '-',  alpha = 1.0, label = f'train: {xlabel[0]}', color = colors[7])
+            ax.plot(x['test'][label],  y['test'][label],  '-', alpha = 1.0, label = f'test: {xlabel[0]}',  color = colors[4])
         else:
             ax.plot(x['train'][label], y['train'][label], '-',  alpha = 1.0, label = f'{xlabel[0]}', color = colors[i])
             ax.plot(x['test'][label],  y['test'][label],  '--', alpha = 1.0,                         color = colors[i])
@@ -63,6 +64,8 @@ def plot_line(x, y, best_epoch, xlabel, lims, figname):
     else:
         leg = ax.legend(frameon=False)
     
+    if is_log:
+        plt.xscale('log')
     
     plt.tight_layout()
     plt.savefig(figname, dpi=300)
@@ -92,7 +95,7 @@ def plot_history(workdir, results, metrics = ['loss', 't1_acc', 't2_acc', 'time'
     if not os.path.exists(f'{workdir}/history'):
         os.makedirs(f'{workdir}/history')
     
-    Xs, Ys = {}, {}
+    Xs, Ys, YYs = {}, {}, {}
     
     for metric in metrics:
         
@@ -100,7 +103,7 @@ def plot_history(workdir, results, metrics = ['loss', 't1_acc', 't2_acc', 'time'
             print(metric, 'skip')
             continue
         
-        X, Y = {}, {}
+        X, Y, YY = {}, {}, {}
         for phase in phases:
             d = results[phase][metric]
             d = np.array(d)
@@ -113,12 +116,25 @@ def plot_history(workdir, results, metrics = ['loss', 't1_acc', 't2_acc', 'time'
                 else:
                     Y[phase][v] = d[:]
                 X[phase][v] = epochs
-        
+                
+        is_log =  epochs[-1] > 100
+        is_log = False
         labels = np.array(keywords[metric])
         figname = f'{workdir}/history/plot_{metric}.png'
-        plot_line(x = X, y = Y, best_epoch = best_epoch, xlabel = ['epoch', metric], lims = None, figname = figname)
+        plot_line(x = X, y = Y, best_epoch = best_epoch, xlabel = ['epoch', metric], lims = None, figname = figname, is_log = is_log)
         Xs[metric] = X
         Ys[metric] = Y
+        
+        # for phase in phases:
+        #     yy = np.insert(Y[phase][metric], 0, Y[phase][metric][0])
+        #     yy = np.delete(yy, -1)
+        #     yy = 1.0 - yy/Y[phase][metric]
+        #     YY[phase] = {metric:yy}
+        # figname = f'{workdir}/history/plot_{metric}-diff.png'
+        # plot_line(x = X, y = YY, best_epoch = best_epoch, xlabel = ['epoch', metric+'(diff=1-y0/y1)'], lims = None, figname = figname, is_log = is_log)
+        
+        
+    
     return Xs, Ys
 
 def main(opts):
