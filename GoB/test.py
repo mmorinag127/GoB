@@ -1,6 +1,6 @@
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "5"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
 import tensorflow.compat.v2 as tf
@@ -313,7 +313,7 @@ def test_pytree():
 def param_flatten(param, key = '', ret = {}):
     
     if type(param) is not dict:
-        ret[key] = param.shape
+        ret[key] = param
         return ret
     
     elif type(param) is dict:
@@ -429,9 +429,6 @@ def test_patch2():
     print(patch4)
 
 
-
-
-
 def test_imshow():
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
@@ -461,12 +458,12 @@ if __name__ == '__main__':
     #test_gob2()
     #test_cbloss()
     #test_tf1()
-    #test_pytree()
+    test_pytree()
     #test_GPUtil()
     #test_dict()
     #test_jax1()
     #test_patch()
-    test_patch2()
+    #test_patch2()
     #test_imshow()
     
     

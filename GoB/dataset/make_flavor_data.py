@@ -1,7 +1,9 @@
-
+import os
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 import functools
 import tensorflow.compat.v2 as tf
 tf.config.experimental.set_visible_devices([], 'GPU')
+
 
 from flavor_data import get_binning_mask, serialize_image, deserialize_image#, serialize_graph
 
@@ -227,9 +229,18 @@ def read_tfrecord(filename, batch_size, compression):
         p = val/n_samples['N_all']*100.0
         print(key, float(val), float(p))
 
-def make_dataset():
+def read_meta_data(filename):
+    f = np.load(filename, allow_pickle = True)
+    print(f'all   : {f["N_all"]}')
     
-    filename = '/data/morinaga/work/GoB/data/flavor/all-flavor-reco-32x32-max1000.tfrecord'
+    for flavor in ['d-jet', 'u-jet', 's-jet', 'c-jet', 'b-jet', 'g-jet']:
+        n = f[f'N_{flavor}']
+        print(f'{flavor} : {n}')
+        
+
+def make_dataset():
+    filename = '/data/morinaga/work/GoB/data/flavor/all-flavor-reco-32x32-2^20.tfrecord'
+    #filename = '/data/morinaga/work/GoB/data/flavor/all-flavor-reco-32x32-2^16.tfrecord'
     make_image_tfrecords(
         filename = filename,
         filepath = '/home/morinaga/work/data/flavor/2022-06-26/?-jet/*.npz', 
@@ -237,7 +248,8 @@ def make_dataset():
         is_image = True,
         dR = 0.4, 
         n_pixel = 32,
-        n_max = 1000,
+        n_max = 2**20,
+        #n_max = 2**16,
         compression = '',
         valid_labels = [1, 2, 3, 4, 5, 6]
         )
@@ -246,13 +258,12 @@ if __name__ == '__main__':
     
     #make_dataset()
     
-    read_tfrecord(filename = '/data/morinaga/work/GoB/data/flavor/all-flavor-reco-32x32-max1000', batch_size = 128, compression = '')
+    read_tfrecord(filename = '/data/morinaga/work/GoB/data/flavor/all-flavor-reco-32x32', batch_size = 128, compression = '')
     #check_label(filename = '/data/morinaga/work/GoB/data/flavor/all-flavor-reco-32x32', batch_size = 1, compression = '')
     
-
+    #read_meta_data(filename = '/data/morinaga/work/GoB/data/flavor/all-flavor-reco-32x32.npz')
     # rng = np.random.default_rng(seed = 0)
     # perms = rng.permutation(10)
     # print(perms)
-    
     
     

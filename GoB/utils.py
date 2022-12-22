@@ -5,6 +5,19 @@ import optax
 import numpy as np
 from copy import deepcopy
 
+def param_flatten(param, key = '', ret = {}, is_root = False):
+    
+    if type(param) is not dict:
+        ret[key] = param
+        return ret
+    
+    elif type(param) is dict:
+        for k in param.keys():
+            next_key = f'{k}' if is_root else f'{key}/{k}'
+            ret = param_flatten(param[k], next_key, ret)
+    
+    return ret
+
 def set_seed(seed = 1, logger = None):
     if logger is not None : 
         logger.info(f'seed is fixed to {seed}')
@@ -173,13 +186,16 @@ class Monitor(Thread):
     def get_gpu_usage(self, mean = False):
         if self.total > 0:
             _gpu_usage = { f'GPU/{k}': v/self.total for k,v in self.gpu_usage.items()}
+            if mean:
+                tmp = [v for v in _gpu_usage.values() if v > 0.0]
+                if len(tmp) > 0:
+                    _gpu_usage = {'GPU': np.mean(tmp) }
+                else:
+                    _gpu_usage = {'GPU': 0.0}
         else:
-            print('gpu_usage is all zero!!!!')
             _gpu_usage = { f'GPU/{k}': 0 for k,v in self.gpu_usage.items()}
-        
-        if mean:
-            _gpu_usage = {'GPU': np.mean([v for v in _gpu_usage.values() if v > 0.0]) }
-        
+            if mean:
+                _gpu_usage = {'GPU':0}
         return _gpu_usage
     
 

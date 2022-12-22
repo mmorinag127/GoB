@@ -12,22 +12,12 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["JAX_ENABLE_X64"] = "1"
 # os.environ["RAY_SCHEDULER_EVENTS"]="0"
 
-
 from logger import make_logger
 logger = make_logger(__name__)
 
-import tensorflow as tf
-#tf.config.experimental.set_visible_devices([], 'GPU')
-gpus = tf.config.experimental.list_physical_devices('GPU')
-if gpus:
-    try:# Currently, memory growth needs to be the same across GPUs
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-        logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-        logger.info(f'TF: {len(gpus)} Physical GPUs, {len(logical_gpus)} Logical GPUs')
-    except RuntimeError as e: # Memory growth must be set before GPUs have been initialized
-        print(e)
-tf.get_logger().setLevel('ERROR')
+from tf_setup import tf_setup
+tf_setup(logger)
+
 
 import argparse
 from copy import deepcopy
@@ -36,10 +26,6 @@ import jax
 import jax.numpy as jnp
 #jnp.set_printoptions(threshold=2)
 #jax.config.update("jax_debug_nans", True)
-
-
-
-
 import mlflow
 from tqdm.auto import tqdm
 
@@ -51,59 +37,15 @@ from artifact import Artifact
 from updater import Updater, RunState
 
 
-def alpa_method(opts, config, updater):
-    import alpa
-    if opts.local:
-        assert opts.n_hosts == 1
-        alpa.init(cluster='local')
-        physical_mesh = alpa.LocalPhysicalDeviceMesh(jax.local_devices()[:opts.n_devices_per_host])
-        alpa.device_mesh.set_global_physical_mesh(physical_mesh)
-        
-    else:
-        import ray
-        alpa.init(cluster="ray")
-        physical_mesh = alpa.get_global_cluster().get_physical_mesh(list(range(opts.n_hosts)), opts.n_devices_per_host)
-    
-    
-    # as_option.force_data_parallel = True
-    
-    if 'pipeshard' in opts.alpa_type:
-        logical_mesh_shape = (opts.n_devices_per_host,1)
-        logical_mesh = physical_mesh.get_logical_mesh(logical_mesh_shape)
-        as_option = alpa.AutoShardingOption()
-        
-        method = alpa.PipeshardParallel(
-            devices = logical_mesh,
-            num_micro_batches = config.setup.n_micro_batch,
-            #auto_sharding_option = as_option,
-            default_auto_sharding_option = as_option,
-            layer_option = alpa.AutoLayerOption(layer_num=4),
-            stage_option = alpa.AutoStageOption(),
-        )
-    elif 'data' in opts.alpa_type:
-        method = alpa.DataParallel(num_micro_batches = config.setup.n_micro_batch)
-    elif 'shard' in opts.alpa_type:
-        method = alpa.ShardParallel(num_micro_batches = config.setup.n_micro_batch)
-    else:
-        raise ValueError(f'alpa type: {opts.alpa_type} is not supported!')
-    
-    grad_update = alpa.parallelize(updater.update_nominal, method = method, donate_argnums = (0,))
-    eval_metrics = alpa.parallelize(updater.eval_metrics, method = alpa.DataParallel())
-    return grad_update, eval_metrics
 
 def make_batch_placement_specs(f, run_state, batch, rng):
     executable_train = f.get_executable(run_state, batch, rng)
     return executable_train.get_input_placement_specs()[1]
 
-def make_alpa_dataitr(bps, dataset, config):
-    import alpa
-    it = map(lambda xs: jax.tree_map(lambda x: x._numpy(), xs),  dataset.ds)
-    if bps is not None:
-        it = alpa.DataLoader(it, bps, prefetch_size = config.dataset.n_prefetch)
-        # it = alpa.MeshDriverDataLoader(dataset.batch_size, dataset.length, it, bps, prefetch_size = config.dataset.n_prefetch)
-    return iter(it)
-
 def main(opts):
+    n_devices_per_host = len(os.environ["CUDA_VISIBLE_DEVICES"].split(','))
+    logger.info(f'CUDA_VISIBLE_DEVICES = {os.environ["CUDA_VISIBLE_DEVICES"]}, nGPUs = {n_devices_per_host}')
+
     # config
     config = Config(opts, jax.process_index(), **{'setup:model': opts.model, 'setup:seed': opts.seed, 'setup:model_name': opts.model_name, 'setup:head':opts.head, 'setup:MoE':opts.MoE, 'setup:FiLM': opts.FiLM})
     
@@ -132,24 +74,64 @@ def main(opts):
         mp_policy = mp_policy,
         mp_nonfinite = config.mp_nonfinite, 
         init_loss_scale = initial_loss_scale, 
-        workdir = config.workdir, n_class = config.setup.n_class
+        workdir = config.workdir, n_class = config.setup.n_class,
+        flooding = config.setup.flooding,
         )
     
-    batch = {'label': jnp.ones((config.batch_size,), dtype = jnp.int32), 'image': jnp.ones((config.batch_size, *config.input.image_shape), dtype = mp_policy.compute_dtype),
-             'prop': jnp.ones((config.batch_size, *config.input.prop_shape), dtype = mp_policy.compute_dtype)}
-    #run_state = updater.restore_from_file() if config.mode.restore() else jax.jit(updater.initial_state)(batch, init_rng, True)
-    run_state = updater.restore_from_file() if config.mode.restore() else updater.initial_state(batch, init_rng, True)
+    is_prop = config.setup.FiLM is not None and config.setup.FiLM != 'None'
     
+    batch_size_device = config.batch_size * n_devices_per_host
+    batch = {'label': jnp.ones((batch_size_device,), dtype = jnp.int32), 'image': jnp.ones((batch_size_device, *config.input.image_shape), dtype = mp_policy.compute_dtype)}
+    if is_prop:
+        batch['prop'] = jnp.ones((batch_size_device, *config.input.prop_shape), dtype = mp_policy.compute_dtype)
+    run_state = updater.restore_from_file(filename='checkpoint_initial.pkl') if config.mode.restore() else jax.jit(updater.initial_state, static_argnums=(2,))(batch, init_rng, True)
     
     out_rng, rng = jax.random.split(rng)
+    import alpa
+    #alpa.shutdown()
+    if opts.local:
+        assert opts.n_hosts == 1
+        alpa.init(cluster='local')
+        #physical_mesh = alpa.LocalPhysicalDeviceMesh(jax.local_devices()[:n_devices_per_host])
+        #alpa.device_mesh.set_global_physical_mesh(physical_mesh)
+        
+    else:
+        import ray
+        alpa.init(cluster="ray")
+        physical_mesh = alpa.get_global_cluster().get_physical_mesh(list(range(opts.n_hosts)), opts.n_devices_per_host)
     
     if config.mode.training():
-        grad_update, eval_metrics = alpa_method(opts, config, updater)
-        datasets['train'].iter = make_alpa_dataitr(make_batch_placement_specs(grad_update,  run_state, batch, out_rng), datasets['train'], config)
-        datasets['test'].iter  = make_alpa_dataitr(make_batch_placement_specs(eval_metrics, run_state, batch, out_rng), datasets['test'],  config)
+        if 'pipeshard' in opts.alpa_type:
+            #logical_mesh_shape = (n_devices_per_host,1)
+            #logical_mesh = physical_mesh.get_logical_mesh(logical_mesh_shape)
+            as_option = alpa.AutoShardingOption()
+            
+            method = alpa.PipeshardParallel(
+                #devices = logical_mesh,
+                #devices = physical_mesh,
+                num_micro_batches = config.setup.n_micro_batch,
+                #auto_sharding_option = as_option,
+                default_auto_sharding_option = as_option,
+                layer_option = alpa.AutoLayerOption(layer_num=4),
+                stage_option = alpa.AutoStageOption(),
+            )
+        elif 'data' in opts.alpa_type:
+            method = alpa.DataParallel(num_micro_batches = config.setup.n_micro_batch)
+        elif 'shard' in opts.alpa_type:
+            method = alpa.ShardParallel(num_micro_batches = config.setup.n_micro_batch)
+        else:
+            raise ValueError(f'alpa type: {opts.alpa_type} is not supported!')
+        
+        grad_update = alpa.parallelize(updater.update_nominal, method = method, donate_argnums = (0,))
+        eval_metrics = alpa.parallelize(updater.eval_metrics, method = alpa.DataParallel())
+        
+        
+        datasets['train'].set_iter(it = alpa.DataLoader(datasets['train'].it, make_batch_placement_specs(grad_update, run_state, batch, out_rng), prefetch_size = config.dataset.n_prefetch))
+        datasets['test'].set_iter( it = alpa.DataLoader(datasets['test'].it,  make_batch_placement_specs(eval_metrics,run_state, batch, out_rng), prefetch_size = config.dataset.n_prefetch))
+        
     else:
-        eval_output = jax.jit(updater.eval_output_with if opts.isMoE else updater.eval_output)
-        datasets['test'].iter  = make_alpa_dataitr(None, datasets['test'],  config)
+        eval_output = jax.jit(updater.eval_output)
+        datasets['test'].set_iter(it = None)
     
     #physical_mesh.sync_workers()
     
@@ -159,6 +141,7 @@ def main(opts):
     
     if config.mode.training():
         logger.info(f'starting training')
+        artifact.save_checkpoint(run_state, name='checkpoint_initial.pkl')
         
         # mlflow 
         if config.process_idx == 0:
@@ -171,26 +154,37 @@ def main(opts):
         for epoch in range(1, config.setup.n_epochs+1):
             with tqdm(**artifact.pbar_args) as pbar:
                 pbar.set_description(artifact.pbar_desc(epoch))
-                monitor = utils.Monitor(20.0)#sec
+                monitor = utils.Monitor(config.monitor_rate.train)#sec
                 monitor.start_record()
                 
                 with artifact.timer('train', epoch):
                     for step in range(datasets['train'].n_step):
                         batch = next(datasets['train'].iter)
                         out_rng, rng = jax.random.split(rng)
-                        run_state, run_metrics = grad_update(run_state, batch, out_rng)
+                        run_state, run_metrics, grads = grad_update(run_state, batch, out_rng)
                         
                         if step % config.info_step == 0:
                             metrics = eval_metrics(run_state, batch, out_rng)
                             run_metrics = {k:jax.device_get(v).item() for k,v in run_metrics.items()}
                             metrics.update(run_metrics)
                             artifact.set_metrics('train', metrics = metrics)
+                            flatten_grads = utils.param_flatten(grads, is_root = True)
                         pbar.set_postfix_str(artifact.pbar_update())
                         pbar.update(1)
+                        
+                    if jnp.isnan(run_metrics['g_norm']):
+                        print('')
+                        for k, v in flatten_grads.items():
+                            min_grad = jnp.min(v)
+                            max_grad = jnp.max(v)
+                            mean_grad = jnp.mean(v)
+                            var_grad = jnp.std(v)
+                            print(f'{k: <32s}({v.ndim}) : min/max = {min_grad:.3e}/{max_grad:.3e}, mean/sigma = {mean_grad:.3e}/{var_grad:.3e}')
+                        input('This is nan')
                 
                 monitor.stop_record()
                 artifact.set_monitor('train', monitor.get_gpu_usage(mean=True))
-                monitor = utils.Monitor(1.0)
+                monitor = utils.Monitor(config.monitor_rate.test)
                 monitor.start_record()
                 
                 with artifact.timer('test', epoch):
@@ -228,22 +222,25 @@ def main(opts):
             for _ in range(datasets['test'].n_step):
                 data = next(datasets['test'].iter)
                 if opts.isMoE:
-                    logits, _, expert_weights = eval_output(run_state, data, rng)
-                    expert_weights = jnp.swapaxes(expert_weights, 0, 1)
+                    logits, loss, aux = eval_output(run_state, data, rng)
+                    expert_weights = jnp.swapaxes(aux['expert_weights'], 0, 1)
                     artifact.add_x(jax.device_get(expert_weights), 'expert_weights', shape = expert_weights.shape)
                 else:
-                    logits, _ = eval_output(run_state, data, rng)
+                    logits, loss, aux = eval_output(run_state, data, rng)
                 
                 # print(expert_weights[0])
                 # input('enter')
                 labels = jax.device_get(data['label'])
-                artifact.add_x(jax.device_get(data['prop']),  'prop')
+                if is_prop:
+                    artifact.add_x(jax.device_get(data['prop']),  'prop')
                 artifact.add_x(labels, 'label', shape = [labels.shape[0], ])
                 artifact.add_x(jax.device_get(logits), 'logit')
                 
                 pbar.update(1)
-        
-        artifact.save_outputs('eval-outputs', xlists = ['label', 'logit', 'prop'])
+        if is_prop:
+            artifact.save_outputs('eval-outputs', xlists = ['label', 'logit', 'prop'])
+        else:
+            artifact.save_outputs('eval-outputs', xlists = ['label', 'logit',])
     
     
     
@@ -265,7 +262,6 @@ if __name__ == "__main__":
     parser.add_argument('-e',  '--experiment',   action = 'store', dest = 'experiment_name',    type = str,  default = None)
     parser.add_argument('-r',  '--run_name',     action = 'store', dest = 'run_name',           type = str,  default = None)
     parser.add_argument('-l',  '--local',        action = 'store', dest = 'local',              type = bool, default = True)
-    parser.add_argument('-nd', '--n_device',     action = 'store', dest = 'n_devices_per_host', type = int,  default = 1)
     parser.add_argument('-nh', '--n_hosts',      action = 'store', dest = 'n_hosts',            type = int,  default = 1)
     parser.add_argument('-gpu','--gpuid',        action = 'store', dest = 'gpuid',              type = int,  default = None)
     parser.add_argument('-moe','--isMoE',        action = 'store_true', dest = 'isMoE')

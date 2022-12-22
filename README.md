@@ -56,10 +56,10 @@ pip3 install -e ".[dev]"  # Note that the suffix `[dev]` is required to build cu
 then build `jaxlib` with some fixes.
 ```
 cd alpa/build_jaxlib
-python3 build/build.py --enable_cuda --dev_install --tf_path=$(pwd)/../third_party/tensorflow-alpa --cuda_compute_capabilities "3.5,5.2,6.0,7.0,7.5,8.0" --cudnn_path=/home/morinaga/local/cuda/8.2.4 --cuda_path=/usr/local/cuda-11
+python3 build/build.py --enable_cuda --dev_install --tf_path=$(pwd)/../third_party/tensorflow-alpa --cuda_compute_capabilities "3.5,5.2,6.0,7.0,7.5,8.0" --cudnn_path=/home/morinaga/local/cuda/8.2.4 --cuda_path=/usr/local/cuda-11.6
 cd dist
 
-#pip3 install -e .
+#pip3 install -e . # To install via pip, not poetry
 python setup.py bdist_wheel
 
 ```

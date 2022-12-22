@@ -8,7 +8,7 @@ import tree
 
 
 def l2_loss(params):
-    l2_params = [p for p in tree.flatten(params) if p.ndim > 1 ]
+    l2_params = [p for p in tree.flatten(params) if p.ndim != 1 ]
     return 0.5 * sum(jnp.sum(jnp.square(p)) for p in l2_params)
 
 def make_softmax_ce_loss(config):
@@ -76,6 +76,7 @@ def make_cb_ce_loss(config):
         ce_loss = jnp.nan_to_num(ce_loss, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
 
         if aux_loss is not None:
+            aux_loss = sum(aux_loss)
             ce_loss += aux_loss
         
         ce_loss = jnp.mean(ce_loss)
