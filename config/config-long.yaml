@@ -4,17 +4,18 @@ batch_size: &batch_size 1024
 n_micro_batch: &n_micro_batch 1
 
 n_class: &n_class 5
-n_epochs: &n_epochs 10000
-weight_decay: &weight_decay 1.0e-5
+n_epochs: &n_epochs 10
+weight_decay: &weight_decay 1.0e-4
+monitor_rate: {train: 5.0, test: 0.1}
 
 
 phases: [train, test]
-info_step: 500
+info_step: 1
 is_plot: False
 disable_tb: True
 disable_tqdm: False
-metrics: [loss, t1_acc, t2_acc, g_norm, p_norm]
-metrics_print: [loss, t1_acc, t2_acc, g_norm, p_norm]
+metrics: [loss, t1_acc, t2_acc, g_norm, gf_norm, p_norm]
+metrics_print: [loss, t1_acc, t2_acc, g_norm, gf_norm, p_norm]
 
 
 setup:
@@ -24,8 +25,9 @@ setup:
   head: MLP-S-1
   model_name: Nominal
   optimizer: adam
-  lr_scheduler: constant_schedule
+  lr_scheduler: warmup_cosine_decay_schedule
   loss: cb_bce_loss
+  flooding: null
   dataset: nominal
   n_class: *n_class
   seed: *seed
@@ -60,16 +62,16 @@ lr_scheduler:
     transition_steps: *n_epochs
     transition_begin: 0
   constant_schedule:
-    value: 1.0e-4
+    value: 1.0e-3
 
 loss:
   cb_bce_loss: {beta: 0.9999, gamma: 2.0}
   cb_ce_loss: {beta: 0.9999, gamma: 0.5}
-  ce_loss: None
+  ce_loss: None`
 
 dataset:
-  data_name: nominal
-  batch_size: *batch_size
+  data_name: 2^16
+  batch_sizes: {train: *batch_size, test: *batch_size}
   split: 
     N: 50
     idx: 1
@@ -85,25 +87,27 @@ input:
 #FiLM : &FiLM {depth: 64, dim: 4, dim_inner: 4, norm: null, activation: null, dropout: null}
 FiLM : &FiLM null
 
-
-
-
 hparams:
   weight_decay: *weight_decay
-  setup: [loss, model, lr_scheduler, optimizer]
-  
+  setup: [loss, model, head, lr_scheduler, optimizer]
+is_focal: &is_focal False
+
 head:
-  MLP-S-1: {model: MLP, depth:  1, dim:  32, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class}
-  MLP-S-4: {model: MLP, depth:  4, dim:  32, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class}
-  MLP-S-8: {model: MLP, depth:  8, dim:  32, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class}
-  MLP-M-1: {model: MLP, depth:  1, dim:  64, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class}
-  MLP-M-4: {model: MLP, depth:  4, dim:  64, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class}
-  MLP-M-8: {model: MLP, depth:  8, dim:  64, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class}
-  MLP-L-1: {model: MLP, depth:  1, dim: 128, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class}
-  MLP-L-4: {model: MLP, depth:  4, dim: 128, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class}
-  MLP-L-8: {model: MLP, depth:  8, dim: 128, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class}
-  MLP-VL-1:  {model: MLP, depth:  4, dim: 256, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class}
-  MLP-VVL-1: {model: MLP, depth:  4, dim: 512, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class}
+  Test:    {model: MLP, depth:  1, dim:  16, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
+  MLP-T-1: {model: MLP, depth:  1, dim:  16, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
+  MLP-S-1: {model: MLP, depth:  1, dim:  32, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
+  MLP-S-4: {model: MLP, depth:  4, dim:  32, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
+  MLP-S-8: {model: MLP, depth:  8, dim:  32, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
+  MLP-M-1: {model: MLP, depth:  1, dim:  64, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
+  MLP-M-4: {model: MLP, depth:  4, dim:  64, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
+  MLP-M-8: {model: MLP, depth:  8, dim:  64, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
+  MLP-L-1: {model: MLP, depth:  1, dim: 128, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
+  MLP-L-4: {model: MLP, depth:  4, dim: 128, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
+  MLP-L-8: {model: MLP, depth:  8, dim: 128, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
+  MLP-H-1: {model: MLP, depth:  1, dim: 256, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
+  MLP-V-1: {model: MLP, depth:  1, dim: 512, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
+  MLP-U-1: {model: MLP, depth:  1, dim: 1024, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
+
 
 MoE: 
   None: null
@@ -132,7 +136,11 @@ FiLM:
   FiLM-8-128:  {depth: 128, dim:  8, dim_inner: 16, norm: null, activation: True, dropout: 0.1}
   FiLM-8-128v2:  {depth: 128, dim:  8, dim_inner: 16, norm: null, activation: null, dropout: null}
 
+
+#dropout: &dropout 0.1
+
 model:
+  
   gMLP-S:  {patch_size: 4, depth:  4, dim:   32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null, n_classes: *n_class}
   gMLP-M:  {patch_size: 4, depth:  8, dim:   64, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null, n_classes: *n_class}
   gMLP-L:  {patch_size: 4, depth: 16, dim:  128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null, n_classes: *n_class}
@@ -140,20 +148,29 @@ model:
   CNN-64: {dim: 64, depth: 4, patch_size: 16, n_classes: *n_class}
   Test: {dim: 20, depth: 4, patch_size: 16, n_classes: *n_class}
   
+  Test:     {model: Test,  patch_size: 4, depth:  4, dim:  16, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4}
   GoB-S-2:  {model: GoB,   patch_size: 4, depth:  2, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
   GoB-S-4:  {model: GoB,   patch_size: 4, depth:  4, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
   GoB-S-8:  {model: GoB,   patch_size: 4, depth:  8, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
   
-  ViT-S-4:  {model: ViT,   patch_size: 4, depth:  4, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null, qkv_bias: False}
-  ViT-S-8:  {model: ViT,   patch_size: 4, depth:  8, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null, qkv_bias: False}
-  ViT-S-16: {model: ViT,   patch_size: 4, depth: 16, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null, qkv_bias: False}
-  ViT-M-4:  {model: ViT,   patch_size: 4, depth:  4, dim:  64, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null, qkv_bias: False}
-  ViT-M-8:  {model: ViT,   patch_size: 4, depth:  8, dim:  64, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null, qkv_bias: False}
-  ViT-M-16: {model: ViT,   patch_size: 4, depth: 16, dim:  64, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null, qkv_bias: False}
-  ViT-L-4:  {model: ViT,   patch_size: 4, depth:  4, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null, qkv_bias: False}
-  ViT-L-8:  {model: ViT,   patch_size: 4, depth:  8, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null, qkv_bias: False}
-  ViT-L-16: {model: ViT,   patch_size: 4, depth: 16, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null, qkv_bias: False}
+  ViT-T-4:   {model: ViT,  patch_size: 4, depth:   4, dim:  16, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
+  ViT-T-16:  {model: ViT,  patch_size: 4, depth:  16, dim:  16, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
+  ViT-S-4:   {model: ViT,  patch_size: 4, depth:   4, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
+  ViT-S-8:   {model: ViT,  patch_size: 4, depth:   8, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
+  ViT-S-16:  {model: ViT,  patch_size: 4, depth:  16, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
   
+  ViT-M-4:   {model: ViT,  patch_size: 4, depth:   4, dim:  64, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
+  ViT-M-8:   {model: ViT,  patch_size: 4, depth:   8, dim:  64, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
+  ViT-M-16:  {model: ViT,  patch_size: 4, depth:  16, dim:  64, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
+  ViT-L-4:   {model: ViT,  patch_size: 4, depth:   4, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
+  ViT-L-8:   {model: ViT,  patch_size: 4, depth:   8, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
+  ViT-L-16:  {model: ViT,  patch_size: 4, depth:  16, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
+  ViT-L-32:  {model: ViT,  patch_size: 4, depth:  32, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
+  ViT-L-64:  {model: ViT,  patch_size: 4, depth:  64, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
+  ViT-L-128: {model: ViT,  patch_size: 4, depth: 128, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
+  ViT-H-16:  {model: ViT,  patch_size: 4, depth:  16, dim: 256, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
+  ViT-V-16:  {model: ViT,  patch_size: 4, depth:  16, dim: 512, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
+  ViT-U-16:  {model: ViT,  patch_size: 4, depth:  16, dim: 1024, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
   
   Mixer-S-4-2: {model: Mixer, patch_size: 2, depth:  4, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
   Mixer-S-4:   {model: Mixer, patch_size: 4, depth:  4, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
@@ -163,13 +180,15 @@ model:
   Mixer-M-8:   {model: Mixer, patch_size: 4, depth:  8, dim:  64, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
   Mixer-M-8-2: {model: Mixer, patch_size: 2, depth:  8, dim:  64, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
   Mixer-M-16:  {model: Mixer, patch_size: 4, depth: 16, dim:  64, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
-  Mixer-L-4:   {model: Mixer, patch_size: 4, depth:  4, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
+  Mixer-L-4:   {model: Mixer, patch_size: 4, depth:  4, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4}
   Mixer-L-8:   {model: Mixer, patch_size: 4, depth:  8, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
   Mixer-L-16:  {model: Mixer, patch_size: 4, depth: 16, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
-  Mixer-L-32:  {model: Mixer, patch_size: 4, depth: 32, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
+  Mixer-L-32:  {model: Mixer, patch_size: 4, depth: 32, dim: 128, expansion: 4, n_heads:  4, dropout:  0.0, drop_path:  0.0, layer_scale: 1.0e-4}
   Mixer-L-64:  {model: Mixer, patch_size: 4, depth: 64, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
   Mixer-VL-4:  {model: Mixer, patch_size: 4, depth:  4, dim: 256, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
   Mixer-VVL-4: {model: Mixer, patch_size: 4, depth:  4, dim: 512, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
+  Mixer-H-4:   {model: Mixer, patch_size: 4, depth:  4, dim: 1024,expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
+
 
 
 

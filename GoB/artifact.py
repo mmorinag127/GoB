@@ -161,7 +161,6 @@ class Artifact:
                 metrics[f'{metric}/{phase}'] = self.history[phase][metric][-1][0]
         return metrics
     
-    
     def set_pbar_postfix_str(self, is_best = None):
         postfix = ''
         for metric in self.metrics_p:
@@ -179,6 +178,8 @@ class Artifact:
                         r = f'{val: .2f}'
                         r = f'{r: >6s}'
                     elif 'lr' in metric:
+                        r = f'{val: .3e}'
+                    elif 'norm' in metric:
                         r = f'{val: .3e}'
                     else:
                         r = f'{val: .3f}'

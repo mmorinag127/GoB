@@ -57,6 +57,8 @@ class DatasetSplit:
             self.length = math.floor((N - 1)/N*f['N_all'])
         else:
             self.length = math.floor(f['N_all']/N)
+    def get_N_idx_str(self):
+        return f'{self.idx}of{self.N}'
     
     def info(self, batch_size, n_device):
         n_step_per_epoch = math.ceil(self.length / (batch_size * n_device))
@@ -78,26 +80,51 @@ class Dataset:
         self.n_step = n_step
         self.length = length
         self.batch_size = batch_size
+        self.it = map(lambda xs: jax.tree_map(lambda x: x._numpy(), xs), self.ds)
     
     def info(self):
         return {'n_step': self.n_step, 'length': self.length, 'batch_size': self.batch_size}
+    
+    def set_iter(self, it = None):
+        if it is not None:
+            self.it = iter(it)
+        self.iter = iter(self.it)
 
-def make_dataset(data_name, phase, split, batch_size, dtype, label_table, prop_table, cache = False, transpose = False, n_prefetch = 2):
+def make_dataset(data_name, phase, split, batch_sizes, dtype, label_table, prop_table, cache = False, transpose = False, n_prefetch = 2, is_prop = False):
+    
+    batch_size = batch_sizes[phase]
     
     n_device = jax.local_device_count()
-    n_device = 1
     
     if 'nominal' in data_name:
-        datafiles = 'data/flavor/all-flavor-reco-32x32'
+        data_dir = 'data/flavor'
+        datafile = 'all-flavor-reco-32x32'
+        datafiles = f'{data_dir}/{datafile}'
         compression = ''
         
-        preprocess_image = make_preprocess_image(datafiles + '.npz')
-        preprocess_prop  = make_preprocess_prop(prop_table)
-        preprocess_label = make_preprocess_label(label_table)
+    elif '2^20' in data_name:
+        data_dir = 'data/flavor'
+        datafile = 'all-flavor-reco-32x32-2^20'
+        datafiles = f'{data_dir}/{datafile}'
+        compression = ''
+        
+    elif '2^16' in data_name:
+        data_dir = 'data/flavor'
+        datafile = 'all-flavor-reco-32x32-2^16'
+        datafiles = f'{data_dir}/{datafile}'
+        compression = ''
+        
     else:
         raise ValueError(f'{data_name} is not implemented yet...')
     
+    preprocess_image = make_preprocess_image(datafiles + '.npz')
+    preprocess_prop  = make_preprocess_prop(prop_table)
+    preprocess_label = make_preprocess_label(label_table)
     ds_split = DatasetSplit(phase = phase, info_file = datafiles+'.npz', **split)
+    
+    
+    
+    
     
     options = tf.data.Options()
     options.threading.private_threadpool_size = 48
@@ -114,18 +141,18 @@ def make_dataset(data_name, phase, split, batch_size, dtype, label_table, prop_t
     
     # Only cache if we are reading a subset of the dataset.
     if cache and 'test' in phase:
-        ds = ds.cache('data/cache/test2.tfrecord')
+        ds = ds.cache(f'data/cache/{datafile}.{ds_split.get_N_idx_str()}.test.cache.tfrecord')
     
+    ds = ds.repeat()
     if 'train' in phase:
-        ds = ds.repeat()
         ds = ds.shuffle(buffer_size = 16*batch_size*n_device, seed = 0)
     
-    
-    f_deserialize_image = functools.partial(deserialize_image, is_prop = True)
+    f_deserialize_image = functools.partial(deserialize_image, is_prop = is_prop)
     ds = ds.map(f_deserialize_image, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'deserialize_image')
     
     ds = ds.map(preprocess_image, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'preprocessing_image')
-    ds = ds.map(preprocess_prop,  num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'preprocessing_prop')
+    if is_prop:
+        ds = ds.map(preprocess_prop,  num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'preprocessing_prop')
     ds = ds.map(preprocess_label, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'preprocessing_label')
     
     if transpose:
@@ -143,13 +170,12 @@ def make_dataset(data_name, phase, split, batch_size, dtype, label_table, prop_t
             batch['prop'] = tf.cast(batch['prop'], tf.dtypes.as_dtype(dtype))
             return batch
         ds = ds.map(cast_image, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'cast_image')
-        ds = ds.map(cast_prop,  num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'cast_prop')
+        if is_prop:
+            ds = ds.map(cast_prop,  num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'cast_prop')
     
     
-    ds = ds.batch(batch_size*n_device, drop_remainder = 'train' in phase)
+    ds = ds.batch(batch_size*n_device, drop_remainder = phase in ['train', 'test'])
     #ds = ds.prefetch(tf.data.experimental.AUTOTUNE, name = 'prefetch')
-    if 'train' not in phase:
-        ds = ds.repeat()
     
     ds = ds.prefetch(16, name = 'prefetch')
     

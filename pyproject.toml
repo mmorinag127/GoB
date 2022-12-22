@@ -13,19 +13,27 @@ PyYAML = "^6.0"
 yapf = "^0.32.0"
 matplotlib = "^3.5.2"
 GPUtil = "^1.4.0"
-numpy = "1.20"
-
-
-jaxlib = {path = "/data/morinaga/wheel/jaxlib-0.3.5-py3-none-any.whl"}
-jax = "0.3.5"
-dm-haiku = "^0.0.7"
-optax = "^0.1.3"
-tensorflow = "^2.9.1"
-scikit-learn = "^1.1.1"
 mlflow = "^1.27.0"
 
-ray = "^1.13.0"
-cupy-cuda116 = "^10.6.0"
+
+#jaxlib = {path = "/data/morinaga/wheel/jaxlib-0.3.5-py3-none-any.whl"}
+
+jaxlib = {path = "/data/morinaga/wheel/jaxlib-0.3.22-cp38-cp38-linux_x86_64.whl"}
+jax = "0.3.22"
+dm-haiku = "^0.0.9"
+optax = "^0.1.4"
+jmp = "^0.0.2"
+
+ray = "^2.2.0"
+cupy-cuda11x = "^11.4.0"
+#numba = "^0.56.4"
+tensorflow = "^2.11.0"
+scikit-learn = "^1.2.0"
+numpy = "1.23.3"
+tensorflow-datasets = "^4.7.0"
+tensorrt = "^8.5.2.2" # To diable many warning message from tensorflow
+
+
 [tool.poetry.dev-dependencies]
 
 [build-system]
