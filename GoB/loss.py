@@ -4,8 +4,30 @@ import optax
 import tree
 
 
+def mse_loss(config):
+    scale = config.loss.mse_loss.scale
+    def loss_f(pred, target):
+        loss = optax.l2_loss(pred, target)
+        loss = jnp.sum(loss, axis=-1)
+        if scale is not None and scale > 0.:
+            loss = loss*scale
+        return loss
+    return loss_f
 
-
+def smooth_mse_loss(config):
+    scale = config.loss.mse_loss.scale
+    beta = config.loss.mse_loss.beta
+    def loss_f(pred, target):
+        err = pred - target
+        aerr = jnp.abs(err)
+        if aerr < beta:
+            loss = 0.5 * err**2 / beta
+        else:
+            loss = aerr - 0.5 * beta 
+        if scale is not None and scale > 0.:
+            loss = loss * scale
+        return loss
+    return loss_f
 
 def l2_loss(params):
     l2_params = [p for p in tree.flatten(params) if p.ndim != 1 ]
@@ -17,11 +39,9 @@ def make_softmax_ce_loss(config):
     n_class = config.setup.n_class
     
     def loss_f(logits, labels, params, aux_loss = None):
-        #one_hot = jax.nn.one_hot(labels, n_class)
-        if smooth_label is not None:
-            labels = optax.setup.smooth_label(labels, smooth_label)
-        
         one_hot = jax.nn.one_hot(labels, n_class)
+        if smooth_label is not None:
+            one_hot = optax.smooth_labels(one_hot.astype(jnp.float32), smooth_label)
         ce_loss = optax.softmax_cross_entropy(logits = logits, labels = one_hot)#.mean()
         ce_loss = jnp.nan_to_num(ce_loss, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
         
@@ -148,6 +168,7 @@ def make_cb_bce_loss(config):
     beta = config.loss.cb_ce_loss.beta
     gamma = config.loss.cb_ce_loss.gamma
     weight_decay = config.setup.weight_decay
+    smooth_label = config.setup.smooth_label
     #class_weights = config.cb_ce_loss.class_weight
     
     def loss_f(logits, labels, params, aux_loss = None):
@@ -161,6 +182,8 @@ def make_cb_bce_loss(config):
         weight = weight / jnp.sum(weight, axis = -1)
         weight = jnp.nan_to_num(weight, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
         
+        if smooth_label is not None:
+            one_hot = optax.smooth_labels(one_hot.astype(jnp.float32), smooth_label)
         
         sm = jax.nn.softmax(logits, axis = 1)
         
@@ -183,15 +206,17 @@ def make_cb_bce_loss(config):
             ce_loss += aux_loss
         
         ce_loss = jnp.mean(ce_loss)
-        
-        L2_loss = l2_loss(params)
-        L2_loss = jnp.nan_to_num(L2_loss, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
-        
-        
-        loss = ce_loss + weight_decay * L2_loss
+        loss = ce_loss 
+        if weight_decay is not None and weight_decay > 0.0:
+            L2_loss = l2_loss(params)
+            L2_loss = jnp.nan_to_num(L2_loss, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
+            loss += weight_decay * L2_loss
         
         return loss
     return loss_f
+    
+    
+
 
 
 
@@ -209,5 +234,44 @@ def make_cb_bce_loss(config):
 #         L_mm     = torch.sum(losses*(1.0 - onehot), -1)/y_true.size(0)
 #         loss     = torch.sum(L_mm + rw, -1)
 #         return loss
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

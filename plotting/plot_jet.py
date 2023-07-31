@@ -17,8 +17,8 @@ def channel(idx):
     if   idx == 0 : return 'track'
     elif idx == 1 : return 'EMCal'
     elif idx == 2 : return 'HCal'
-    elif idx == 3 : return '#of object'
-    elif idx == 4 : return 'sum of d0'
+    elif idx == 3 : return 'sum of d0'
+    elif idx == 4 : return 'pt'
     elif idx == 5 : return 'truth mass'
     return None
 def get_label(l):
@@ -32,7 +32,6 @@ def get_label(l):
     return 'None!'
 
 def make_jet_image( img, label, figname, n_pixel = 32, n_channel = 5):
-    
     fig = plt.figure(figsize=(8.0*n_channel, 8.0))
     gs = fig.add_gridspec(ncols = n_channel, nrows = 1, hspace=0)
     ax = gs.subplots(sharex=True, sharey=True)
@@ -177,16 +176,10 @@ def plot_just_one_jet(opts):
         make_jet_image(image, label, fig_name)
         if idx >= 9:
             break
-    
-    
-    
-    
 
 def main(opts, eps = 1e-7):
     data = np.load(opts.data_file, allow_pickle=True)
-    for key in data.keys():
-        print(key)
-        
+    
     image_raw = {}
     image_cor = {}
     
@@ -218,6 +211,74 @@ def main(opts, eps = 1e-7):
     make_all_jet_image(image_raw, figname = f'figs/{opts.data_ver}_raw.png', n_pixel = 32, n_channel = 5)
     make_all_jet_image(image_cor, figname = f'figs/{opts.data_ver}_cor.png', n_pixel = 32, n_channel = 5)
 
+def make_plots(): 
+    import sys
+    np.set_printoptions(threshold=sys.maxsize)
+    eps=1.0e-7
+    labels = {'H->ss':0, 'H->cc':1, 'H->bb':2,
+            'g->uu/dd':3, 'g->ss':4, 'g->cc':5, 'g->bb':6,
+            'd/u-quark':7, 's-quark':8, 'c-quark':9, 'b-quark':10, 'gluon':11}
+    
+    data = np.load('all_image.npz', allow_pickle = True)
+    
+    fig_dir = 'figs/LargeR-jet-image-64'
+    mkdir(fig_dir)
+    sum1 = np.zeros(shape=(64,64,5))
+    sum2 = np.zeros(shape=(64,64,5))
+    weight = 0
+    N_total = data['N_total']
+    all_img = {}
+    for label in labels.keys():
+        m = data[f'{label}_mean']
+        m = m.transpose(2,0,1)
+        l = label.replace('->', '').replace('/','')
+        #make_jet_image(m, label, figname = f'{fig_dir}/{l}.png', n_pixel=64, n_channel=5)
+        w = N_total/data[f'{label}_total']
+        print(label, data[f'{label}_total'], w)
+        sum1 += data[f'{label}_sum1']*w
+        sum2 += data[f'{label}_sum2']*w
+        # print(data[f'{label}_sum1'][16:32,16:32,2])
+        # print(data[f'{label}_sum1'][16:32,16:32,2]*w)
+        # input('sum1')
+        # print(data[f'{label}_sum2'][16:32,16:32,2])
+        # input('sum2')
+        weight += w
+        all_img[label] = data[f'{label}_mean'].transpose(2,0,1)
+    
+    make_all_jet_image(all_img, figname = f'{fig_dir}/all_flavors.png', n_pixel=64, n_channel=5)
+    mean = sum1/weight
+    sigma = (sum2 - 2.0*mean*sum1 + weight*mean*mean)/weight
+    #print(sum1[16:32,16:32,2])
+    input('sum1')
+    # print(sum2[16:32,16:32,2])
+    # input('sum2')
+    print(mean[16:32,16:32,2])
+    input('mean')
+    print('weight', weight)
+    input('weight')
+    print(sigma[16:32,16:32,2])
+    input('sigma')
+    sigma = np.sqrt(sigma)
+    mean = mean.transpose(2,0,1)
+    sigma = sigma.transpose(2,0,1)
+    # print(mean[2])
+    # input('mean')
+    print(sigma[2])
+    input('sigma')
+    make_jet_image(mean,  'all', figname = f'{fig_dir}/all_mean.png',  n_pixel=64, n_channel=5)
+    make_jet_image(sigma, 'all', figname = f'{fig_dir}/all_sigma.png', n_pixel=64, n_channel=5)
+    
+    for label in labels.keys():
+        m = data[f'{label}_mean'].transpose(2,0,1)
+        l = label.replace('->', '').replace('/','')
+        m = (m - mean)/(sigma+eps)
+        make_jet_image(m, label, figname = f'{fig_dir}/{l}_corr.png', n_pixel=64, n_channel=5)
+        # print(m[2])
+        # input('enter')
+    
+
+
+
 
 
 
@@ -230,8 +291,8 @@ if __name__ == '__main__':
     
     
     #main(opts)
-    plot_just_one_jet(opts)
-    
+    #plot_just_one_jet(opts)
+    make_plots()
 
 
 

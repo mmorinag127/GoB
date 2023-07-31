@@ -1,141 +1,232 @@
-
-
-import functools
-import math
-# from pkgutil import read_code
-
 import jax
 import jax.numpy as jnp
-import numpy as np
-
+import glob
 
 import tensorflow.compat.v2 as tf
+from .jet_data import my_tfrecord_data, make_jet_all
+AUTOTUNE = tf.data.experimental.AUTOTUNE
 
-#from .utils import prefetch_to_device, prepare_tf_data
-from .jet_data import deserialize_image
-
-
-class DatasetInfo:
-    def __init__(self, n_device, phase, datafile, cache, compression = '', N = 8, idx = 0):
-        self.n_device = n_device
-        self.name = phase
-        self.N = N
-        self.idx = idx
-        self.datafile = datafile
-        self.cache = cache
-        self.phase = phase
-        self.datafile = datafile
-        self.compression = compression
-        
-        f = np.load(self.datafile+'.npz', allow_pickle = True)
-        
-        if 'train' in self.name:
-            self.length = math.floor((N - 1)/N*f['N_all'])
-        else:
-            self.length = math.floor(f['N_all']/N)
-        self.n_step = math.ceil(self.length / (self.batch_size * n_device))
-        
-    
-    def filter(self):
-        if 'train' in self.name:
-            def _filter(i, y):
-                return i % self.N != self.idx
-        else:
-            def _filter(i, x):
-                return i % self.N == self.idx
-        return _filter
-    
-    def is_cache(self):
-        if self.cache:
-            return True
-        return None
-    
-    def cache_name(self):
-        N_idx_str = f'{self.idx}of{self.N}'
-        return f'data/cache/{self.datafile}.{N_idx_str}.test.tfrecord'
-    
-    def dataset(self, ds, n_device):
-        return Dataset(ds, self.n_step, self.length, self.batch_size)
-        
 class Dataset:
-    def __init__(self, ds, n_step, length, batch_size):
+    def __init__(self, ds, skeleton = None):
         self.ds = ds
-        self.n_step = n_step
-        self.length = length
-        self.batch_size = batch_size
+        self.it = map(lambda xs: jax.tree_map(lambda x: x._numpy(), xs), self.ds)
+        self.skeleton = skeleton if skeleton is not None else next(iter(self.it))
+        
+    def make_bps(self, f, run_state):
+        e = f.get_executable(run_state, self.skeleton)
+        placement_specs = e.get_input_placement_specs()
+        # print(placement_specs[1])
+        return placement_specs[1]
+    
+    def make_iter(self, dataloader, f, run_state, n_prefetch):
+        it = dataloader(self.it, self.make_bps(f, run_state), prefetch_size = n_prefetch)
+        self.iter = iter(it)
+        # self.iter = iter(self.it)
+        
+    def set_iter(self, it = None):
+        if it is not None:
+            self.iter = iter(it)
+        else:
+            self.iter = iter(self.it)
 
+def load_minist_dataset(split, *, is_training, batch_size):
+    import tensorflow_datasets as tfds
+    """Loads the dataset as a generator of batches."""
+    ds = tfds.load("mnist:3.*.*", split=split).cache().repeat()
+    if is_training:
+        ds = ds.shuffle(10 * batch_size, seed=0)
+    ds = ds.batch(batch_size)
+    return Dataset(ds)
 
-def make_dataset(data_name, phase, split, batch_sizes, dtype, label_table, prop_table, cache = False, transpose = False, n_prefetch = 2, is_prop = False):
+def glob_datafiles(datafiles, phase, n_data):
+    _files = []
+    for datafile in datafiles:
+        _files += glob.glob(f'{datafile}')
     
+    if n_data.n_files > len(_files):
+        print(f'#of data files({len(_files)}) is less than #of data_config({n_data.n_files})')
+    _files = _files[:n_data.n_files]
+    files = []
     
-    preprocess_image = make_preprocess_image(datafiles + '.npz')
-    preprocess_prop  = make_preprocess_prop(prop_table)
-    preprocess_label = make_preprocess_label(label_table)
-    ds_split = DatasetSplit(phase = phase, info_file = datafiles+'.npz', **split)
-    
-    
+    for i, datafile in enumerate(_files):
+        if 'train' in phase:
+            if i % n_data.split_N != n_data.split_idx:
+                files.append(datafile)
+        else:
+            if i % n_data.split_N == n_data.split_idx:
+                files.append(datafile)
+    return files
 
-def make_tfds(datainfo, ):
-    n_device = jax.local_device_count()
+def make_dataset(phase, datafiles, batch_sizes, n_prefetch, compression, label_name, n_data, # split_N, split_idx, n_epochs, 
+                var_list, data_def, xargs, cache = None, autotune = None, is_eval = False, is_n_device = False, **kwargs):
+    batch_size = batch_sizes[phase] 
+    if is_n_device:
+        batch_size *= jax.local_device_count()
+    
+    _var_list = {}
+    for key,val in xargs.items():
+        _var_list[val] = var_list[val]
+    
+    for key, val in label_name.items():
+        _var_list[key] = var_list[key]
+    if is_eval:
+        if 'glob' in _var_list:
+            _var_list['glob'] = var_list['glob']
+    
+    if data_def['type'] == 'image':
+        image_shape = [data_def['kwargs']['n_pixel'], data_def['kwargs']['n_pixel'], len(data_def['kwargs']['ch_list'])]
+        f_deserialize = my_tfrecord_data(_var_list).make_deserialize(image = (batch_size, *image_shape))
+    elif data_def['type'] == 'object':
+        l = max(len(data_def['kwargs']['track_list']), len(data_def['kwargs']['cluster_list']))
+        obj_x_shape = (batch_size, data_def['kwargs']['n_max_seq'], l)
+        obj_m_shape = (batch_size, data_def['kwargs']['n_max_seq'], 1)
+        obj_o_shape = (batch_size, data_def['kwargs']['n_max_seq'], 2)
+        f_deserialize = my_tfrecord_data(_var_list).make_deserialize(obj_x = obj_x_shape, mask = obj_m_shape, obj_one_hot = obj_o_shape)
+        
+    elif data_def['type'] == 'pn_obj':
+        l = max(len(data_def['kwargs']['track_list']), len(data_def['kwargs']['cluster_list']))
+        n_max_seq = data_def['kwargs']['n_max_seq']
+        feature_shape = (batch_size, n_max_seq, l)
+        po_shape = (batch_size, n_max_seq, 2)
+        mask_shape = (batch_size, n_max_seq, 1)
+        glob_shape = (batch_size, data_def['kwargs']['n_glob'])
+        f_deserialize = my_tfrecord_data(_var_list).make_deserialize(feature = feature_shape, position = po_shape, one_hot = po_shape, mask = mask_shape, glob=glob_shape)
+        
+    else:
+        node_shape = (data_def['kwargs']['n_max_seq'], len(data_def['kwargs']['ch_list']))
+        f_deserialize = my_tfrecord_data(_var_list).make_deserialize(node = (batch_size, *node_shape), mask = (batch_size, data_def['kwargs']['n_max_seq'], 1))
+    
+    if autotune is None:
+        autotune = AUTOTUNE
+    
+    files = glob_datafiles(datafiles, phase, n_data)
+    def cast_label(data):
+        new_data = {}
+        for key in data.keys():
+            if key in label_name:
+                new_key = label_name[key]
+                new_data[new_key] = tf.cast(data[key], tf.float32)
+            else:
+                new_data[key] = data[key]
+        return new_data
+    
     options = tf.data.Options()
     options.threading.private_threadpool_size = 48
     options.threading.max_intra_op_parallelism = 1
     options.experimental_optimization.map_parallelization = True
     options.experimental_deterministic = False
     
-    ds = tf.data.TFRecordDataset(datainfo.datafile+'.tfrecord', compression_type = datainfo.compression)
+    ds = tf.data.TFRecordDataset(files, compression_type = compression, num_parallel_reads=32)
     ds = ds.with_options(options)
-    ds = ds.enumerate().filter(datainfo.filter(), name = datainfo.name)
-    def de_enumerate(i,x):
-        return x
-    ds = ds.map(de_enumerate, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'de_enumerate')
+    ds = ds.shuffle(buffer_size = 128*batch_size, seed = 0)
     
-    # Only cache if we are reading a subset of the dataset.
-    if datainfo.is_cache():
-        ds = ds.cache(datainfo.cache_name())
+    ds = ds.batch(batch_size, drop_remainder = phase in ['train', 'test'])
+    ds = ds.map(f_deserialize,  num_parallel_calls = autotune, name = 'deserialize_jet_data')
+    ds = ds.map(cast_label,     num_parallel_calls = autotune, name = 'cast')
     
-    if 'train' in datainfo.phase:
-        ds = ds.repeat()
-        ds = ds.shuffle(buffer_size = 16*datainfo.batch_size*n_device, seed = 0)
+    if is_eval:
+        pass
+    else:
+        if cache:
+            print(f'cache will be made for ...')
+            ds = ds.cache()
+        if n_data.repeat:
+            ds = ds.repeat()
     
+    ds = ds.prefetch(n_prefetch, name = 'prefetch')
     
-    f_deserialize_image = functools.partial(deserialize_image, is_prop = is_prop)
-    ds = ds.map(f_deserialize_image, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'deserialize_image')
-    
-    ds = ds.map(preprocess_image, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'preprocessing_image')
-    if is_prop:
-        ds = ds.map(preprocess_prop,  num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'preprocessing_prop')
-    ds = ds.map(preprocess_label, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'preprocessing_label')
-    
-    if transpose:
-        def transpose_image(batch):
-            # C H W -> H W C
-            batch['image'] = tf.transpose(batch['image'], (1,2,0))
-            return batch
-        ds = ds.map(transpose_image, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'transpose_image')
-    
-    if dtype != jnp.float32:
-        def cast_image(batch):
-            batch['image'] = tf.cast(batch['image'], tf.dtypes.as_dtype(dtype))
-            return batch
-        def cast_prop(batch):
-            batch['prop'] = tf.cast(batch['prop'], tf.dtypes.as_dtype(dtype))
-            return batch
-        ds = ds.map(cast_image, num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'cast_image')
-        if is_prop:
-            ds = ds.map(cast_prop,  num_parallel_calls = tf.data.experimental.AUTOTUNE, name = 'cast_prop')
+    return Dataset(ds, skeleton = None)
+
+def make_dataset_top_data(phase, datafiles, batch_sizes, n_prefetch, compression, n_data, 
+                var_list, data_def, xargs, cache = None, autotune = None, is_eval = False, is_n_device = False, n_max=None, **kwargs):
+    batch_size = batch_sizes[phase] 
+    if is_n_device:
+        batch_size *= jax.local_device_count()
     
     
-    ds = ds.batch(datainfo.batch_size*n_device, drop_remainder = datainfo.phase in ['train', 'test'])
-    #ds = ds.prefetch(tf.data.experimental.AUTOTUNE, name = 'prefetch')
+    l = len(data_def['kwargs']['track_list'])
+    n_max_seq = data_def['kwargs']['n_max_seq']
+    feature_shape = (batch_size, n_max_seq, l)
+    position_shape = (batch_size, n_max_seq, 2)
+    mask_shape = (batch_size, n_max_seq, 1)
+    f_deserialize = my_tfrecord_data(var_list).make_deserialize(feature = feature_shape, position = position_shape, mask = mask_shape)
     
-    ds = ds.prefetch(datainfo.n_prefetch, name = 'prefetch')
+    if autotune is None:
+        autotune = AUTOTUNE
     
+    files = []
+    for datafile in datafiles[phase]:
+        files += glob.glob(f'{datafile}')
     
-    #it = map(prepare_tf_data, ds)
-    #it = prefetch_to_device(it, n_prefetch)
-    #it = iter(ds)
+    def cast_label(data):
+        new_data = {}
+        for key in data.keys():
+            if 'label' in key:
+                new_data[key] = tf.cast(data[key], tf.float32)
+            else:
+                new_data[key] = data[key]
+        return new_data
     
-    return datainfo.dataset(ds)
+    def clip_track(data):
+        # position, feature, mask, label
+        for key in ['position', 'feature', 'mask']:
+            d = data[key]
+            data[key] = d[:, :n_max, :]
+        return data
+    
+    options = tf.data.Options()
+    options.threading.private_threadpool_size = 48
+    options.threading.max_intra_op_parallelism = 1
+    options.experimental_optimization.map_parallelization = True
+    options.experimental_deterministic = False
+    
+    ds = tf.data.TFRecordDataset(files, compression_type = compression, num_parallel_reads=32)
+    ds = ds.with_options(options)
+    ds = ds.shuffle(buffer_size = 128*batch_size, seed = 0)
+    
+    ds = ds.batch(batch_size, drop_remainder = phase in ['train', 'test'])
+    ds = ds.map(f_deserialize,  num_parallel_calls = autotune, name = 'deserialize_jet_data')
+    ds = ds.map(cast_label,     num_parallel_calls = autotune, name = 'cast')
+    if n_max is not None:
+        ds = ds.map(clip_track, num_parallel_calls = autotune, name = 'clip_track')
+    
+    if is_eval:
+        pass
+    else:
+        if cache:
+            print(f'cache will be made for ...')
+            ds = ds.cache()
+        if n_data.repeat is not None:
+            ds = ds.repeat()
+    
+    ds = ds.prefetch(n_prefetch, name = 'prefetch')
+    
+    return Dataset(ds, skeleton = None)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

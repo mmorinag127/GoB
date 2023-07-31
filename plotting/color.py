@@ -80,6 +80,7 @@ class NordColor:
             'mono': [self.color(c) for c in ('l2','d0')],
             'rb': [self.color(c) for c in ('b','r')],
             'yg': [self.color(c) for c in ('g','y')],
+            'virds': [self.color(c) for c in ('b', 'g', 'y')],
             #'rainbow' : [self.color(c) for c in ('b', 'fb', 'g', 'y', 'o', 'r')],
             'rainbow' : [self.color(c) for c in ('blue', 'frost light blue', 'frost green', 'green', 'yellow', 'orange', 'red')],
             

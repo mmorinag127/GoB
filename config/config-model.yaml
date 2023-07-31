@@ -1,0 +1,68 @@
+
+FiLM:
+  MLP: 
+    depth: [int, 4, DEP]
+    dim: [int, 4, D]
+    expansion: [int, 2, EXP]
+    norm: [bool, null, NORM]
+    activation: [bool, null, ACT]
+    dropout: [float, null, DR]
+
+MoE:
+  Token: 
+    type: [str, token, TYPE]
+    cycle: [int, 2, CYC]
+    n_experts: [int, 4, NE]
+    topK: [int, 2, K]
+    capacity: [int, 8, C]
+    loss_w_imp: [float, 1.0e-2, LWI]
+    loss_w_load: [float, 0.0, LWL]
+
+head:
+  MLP:
+    depth: [int, 1, DEP]
+    dim: [int, 16, D]
+    expansion: [int, 4, EXP]
+    dropout: [float, 0.1, DR]
+    drop_path: [float, null, DRP]
+    layer_scale: [float, null, LS]
+    focal: [bool, False, FOC]
+
+model:
+  ViT:
+    patch_size: [int, 4, PS]
+    depth: [int, 4, DEP]
+    dim: [int, 16, D]
+    expansion: [int, 4, EXP]
+    n_heads: [int, 4, NH]
+    dropout: [float, 0.1, DR]
+    drop_path: [float, null, DRP]
+    layer_scale: [float, null, LS]
+    qkv_vbias: [bool, False, QKVB]
+  Mixer:
+    patch_size: [int, 4, PS]
+    depth: [int, 4, DEP]
+    dim: [int, 16, D]
+    expansion: [int, 4, EXP]
+    n_heads: [int, 4, NH]
+    dropout: [float, 0.1, DR]
+    drop_path: [float, null, DRP]
+    layer_scale: [float, null, LS]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

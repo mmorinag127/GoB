@@ -1,0 +1,115 @@
+setup:
+  model: FvT-L:4-D:512-NH:64
+  MoE:  None
+  FiLM: None
+  head: MLP-L:1-D:32
+  model_name: Nominal
+  n_class: 8
+
+FiLM:
+  MLP: 
+    depth: [int, 4, L]
+    dim: [int, 4, D]
+    expansion: [int, 2, EXP]
+    norm: [bool, null, NORM]
+    activation: [bool, null, ACT]
+    dropout: [float, null, DR]
+    w_init: [str, null, WI]
+
+MoE:
+  Token: 
+    type: [str, token, TYPE]
+    cycle: [int, 2, CYC]
+    n_experts: [int, 16, NE]
+    topK: [int, 2, K]
+    capacity: [int, 4, C]
+    loss_w_imp: [float, 1.0e-2, LWI]
+    loss_w_load: [float,1.0e-2, LWL]
+    w_init: [str, null, WI]
+  SMoE: 
+    type: [str, SMoE, TYPE]
+    cycle: [int, 2, CYC]
+    n_experts: [int, 16, NE]
+    topK: [int, 2, K]
+    capacity: [int, 4, C]
+    loss_w_imp: [float, 1.0e-2, LWI]
+    loss_w_load: [float,1.0e-2, LWL]
+    w_init: [str, null, WI]
+  XMoE: 
+    type: [str, XMoE, TYPE]
+    cycle: [int, 2, CYC]
+    n_experts: [int, 16, NE]
+    topK: [int, 1, K]
+    capacity: [int, 4, C]
+    dim_e_factor: [int, 2, DE]
+    loss_w_load: [float,1.0e-2, LWL]
+    w_init: [str, null, WI]
+  ECMoE: 
+    type: [str, ECMoE, TYPE]
+    cycle: [int, 2, CYC]
+    n_experts: [int, 16, NE]
+    topK: [int, 1, K]
+    w_init: [str, null, WI]
+
+head:
+  MLP:
+    depth: [int, 1, L]
+    dim: [int, 16, D]
+    expansion: [int, 4, EXP]
+    dropout: [float, 0.1, DR]
+    drop_path: [float, null, DRP]
+    layer_scale: [float, null, LS]
+    focal: [bool, False, FOC]
+    w_init: [str, null, WI]
+
+model:
+  ViT:
+    patch_size: [int, 4, PS]
+    depth: [int, 4, L]
+    dim: [int, 16, D]
+    expansion: [int, 4, EXP]
+    n_heads: [int, 4, NH]
+    dropout: [float, 0.1, DR]
+    drop_path: [float, 0.1, DRP]
+    layer_scale: [float, 1.0e-4, LS]
+    qkv_bias: [bool, True, QKVB]
+    w_init: [str, null, WI]
+  Mixer:
+    patch_size: [int, 4, PS]
+    depth: [int, 4, L]
+    dim: [int, 16, D]
+    expansion: [int, 4, EXP]
+    n_heads: [int, 4, NH]
+    dropout: [float, 0.1, DR]
+    drop_path: [float, null, DRP]
+    layer_scale: [float, null, LS]
+    w_init: [str, null, WI]
+  FvT:
+    depth: [int, 4, L]
+    dim: [int, 16, D]
+    expansion: [int, 4, EXP]
+    n_heads: [int, 4, NH]
+    dropout: [float, 0.1, DR]
+    drop_path: [float, 0.1, DRP]
+    layer_scale: [float, 1.0e-4, LS]
+    qkv_bias: [bool, True, QKVB]
+    w_init: [str, null, WI]
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

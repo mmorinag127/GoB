@@ -8,7 +8,7 @@ class CustomFormatter(logging.Formatter):
     blue  = "\x1b[34;20m"
     red = "\x1b[31;20m"
     reset = "\x1b[0m"
-    base = grey + "%(asctime)s: " + blue + "%(name)20s " + reset 
+    base = grey + "%(asctime)s: " + blue + "%(name)12s " + reset 
     fmt =  "[%(levelname)5s] %(message)s "    
     
     FORMATS = {
@@ -47,7 +47,7 @@ def make_logger(name, level = 'DEBUG'):
     
     logger = logging.getLogger(name)
     logger.setLevel(lvl)
-
+    
     # create console handler with a higher log level
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(lvl)

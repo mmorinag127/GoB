@@ -1,193 +1,322 @@
 
 seed: &seed 3407
-batch_size: &batch_size 16
-n_micro_batch: &n_micro_batch 1
 
-n_class: &n_class 5
-n_epochs: &n_epochs 10
+n_class: &n_class 8
+#n_class: &n_class 2
+
 weight_decay: &weight_decay 1.0e-4
-monitor_rate: {train: 5.0, test: 0.1}
-
+monitor_rate: {train: 60.0, test: 1.0}
 
 phases: [train, test]
-info_step: 10
 is_plot: False
 disable_tb: True
 disable_tqdm: False
-metrics: [loss, t1_acc, t2_acc, g_norm, gf_norm, p_norm]
-metrics_print: [loss, t1_acc, t2_acc, g_norm, gf_norm, p_norm]
+metrics: [loss, t1_acc, t2_acc, g_norm, p_norm, lr]
+aux_to_metric: [load_loss, imp_loss, expert_label_loss]
+metrics_print: [loss, t1_acc, t2_acc, g_norm]
 
 
 setup:
-  model: Mixer-S-4
-  MoE: MoE-2-4-2-8
-  FiLM: FiLM-4-4
-  head: MLP-S-1
+  #xargs: {x: obj_x, mask: obj_mask, one_hot: obj_one_hot, glob: glob}
+  #xargs: {feature: feature, mask: mask, position: position, one_hot: one_hot}
+  #xargs: {feature: feature, mask: mask, one_hot: one_hot}
+  xargs: {feature: feature, mask: mask, position: position, one_hot: one_hot, glob: glob}
+  #xargs: {feature: feature, mask: mask, position: position}
+  layers:
+    model: ViT-L:4-D:32
+    norm: LN-CS:1-CO:1
+    pooling: GAP-A:1
+    head: MLP-L:1-D:32
+    MoE: Token-NC:2-E:4-K:2-C:8
+    FiLM: FiLM-L:1-D:8
   model_name: Nominal
   optimizer: adam
   lr_scheduler: warmup_cosine_decay_schedule
   loss: cb_bce_loss
-  flooding: null
-  dataset: nominal
+  #loss: ce_loss
   n_class: *n_class
+  flooding: null
   seed: *seed
-  n_epochs: *n_epochs
+  log_param: False
+  dataset: 
+    config: dataset.yaml
+    name: hzqcd_pn_v1
+    #name: top_data_v1
+  n_data:
+    info_step: 1024
+    n_step: {train: 800000, test: 512} # 32 epoch
+    split_N: 128
+    split_idx: 0
+    n_files: 2064
+    repeat: True
   workdir: result
   mixed_precision: False
-  smooth_label: null
+  smooth_label: False
   weight_decay: *weight_decay
-  n_micro_batch: *n_micro_batch
+  alpa:
+    num_micro_batches: 8
+    data_parallel: -1
+    operator_parallel: 1
+    pipeline_parallel: 1
+
+
+n_data_book:
+  n_pn_top: 
+    info_step: 3154
+    n_step: {train: 63080, test: 404} # 32 epoch
+    split_N: 128
+    split_idx: 0
+    n_files: 2064
+    repeat: True
+  lr_range_test: 
+    info_step: 100
+    n_step: {train: 110000, test: 404} # 32 epoch
+    split_N: 128
+    split_idx: 0
+    n_files: 2064
+    repeat: True
+  n2048: 
+    info_step: 1024
+    n_step: {train: 1048576, test: 512} # 32 epoch
+    split_N: 128
+    split_idx: 0
+    n_files: 2064
+    repeat: True
+  n1024: 
+    info_step: 1024
+    n_step: {train: 204800, test: 512} # 12.5 epoch
+    split_N: 64
+    split_idx: 0
+    n_files: 1040
+    repeat: True
+  n256:
+    info_step: 1024
+    n_step: {train: 102400, test: 512}
+    split_N: 16
+    split_idx: 0
+    n_files: 272
+    repeat: True
+  n64:
+    info_step: 1024
+    n_step: {train: 102400, test: 128}
+    split_N: 16
+    split_idx: 0
+    n_files: 68
+    repeat: True
 
 mp_policy: 
   nonfinite: True
   init_val: 32768 #2**15
 
-
 optimizer:
   opts:
-    clip_by_global_norm: {max_norm: 1.0}
+    clip_by_global_norm: {max_norm: 100.0}
   radam: {b1: 0.90, b2: 0.999}
   adam: {b1: 0.90, b2: 0.999}
+  adamw: {b1: 0.90, b2: 0.999, weight_decay: 1.0e-4}
 
 lr_scheduler:
   warmup_cosine_decay_schedule: 
-    init_value: 1.0e-4
-    peak_value: 1.0e-2
-    warmup_steps: 5
-    decay_steps: *n_epochs
-    end_value: 1.0e-6
+    init_value: 1.0e-8
+    peak_value: 1.0e-3
+    warmup_steps: 0.1
+    decay_steps: 1.0
+    end_value: 1.0e-8
+  warmup_cosine_decay_schedule:2: 
+    init_value: 1.0e-7
+    peak_value: 1.0e-5
+    warmup_steps: 0.10
+    decay_steps: 1.0
+    end_value: 1.0e-7
+  linear_onecycle_schedule:
+    transition_steps: 1.0
+    peak_value: 3.0e-3
+    pct_start: 0.4
+    pct_final: 0.6
+    div_factor: 10.0
+    final_div_factor: 1.0e+3
   linear_schedule:
-    init_value: 1.0e-4
-    end_value: 1.0e-6
-    transition_steps: *n_epochs
+    init_value: 1.0e-2
+    end_value: 1.0e-7
+    transition_steps: 1.0
     transition_begin: 0
   constant_schedule:
-    value: 1.0e-3
+    value: 1.0e-5
+  step_lr:
+    values: [1.0e-7, 1.0e-6, 1.0e-5, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1]
+    steps:  [0, 10000, 15000, 20000, 25000, 30000, 35000]
+  lr_range_test:
+    init_lr: 1.0e-8
+    last_lr: 1.0e-1
+    init_step: 10000
+    step_size: 100
+    n_step: 1000
+    
+
 
 loss:
   cb_bce_loss: {beta: 0.9999, gamma: 2.0}
   cb_ce_loss: {beta: 0.9999, gamma: 0.5}
-  ce_loss: None`
+  ce_loss: None
 
-dataset:
-  datafile: data/large-R/data-2^20
-  batch_sizes: {train: *batch_size, test: *batch_size}
-  split: 
-    N: 50
-    idx: 1
-  n_prefetch: 4
-  transpose: True
-  cache: True
-  prop_table: [4, 5]
-  label_table: [5, 3, 3, 2, 1, 0, 4] # [None, d, u, s, c, b, g]
-input:
-  image_shape: [32, 32, 5]
-  prop_shape: [2]
-
-#FiLM : &FiLM {depth: 64, dim: 4, dim_inner: 4, norm: null, activation: null, dropout: null}
-FiLM : &FiLM null
 
 hparams:
   weight_decay: *weight_decay
-  setup: [loss, model, head, lr_scheduler, optimizer]
-is_focal: &is_focal False
+  setup: [loss, lr_scheduler, optimizer]
 
-head:
-  Test:    {model: MLP, depth:  1, dim:  16, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
-  MLP-T-1: {model: MLP, depth:  1, dim:  16, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
-  MLP-S-1: {model: MLP, depth:  1, dim:  32, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
-  MLP-S-4: {model: MLP, depth:  4, dim:  32, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
-  MLP-S-8: {model: MLP, depth:  8, dim:  32, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
-  MLP-M-1: {model: MLP, depth:  1, dim:  64, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
-  MLP-M-4: {model: MLP, depth:  4, dim:  64, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
-  MLP-M-8: {model: MLP, depth:  8, dim:  64, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
-  MLP-L-1: {model: MLP, depth:  1, dim: 128, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
-  MLP-L-4: {model: MLP, depth:  4, dim: 128, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
-  MLP-L-8: {model: MLP, depth:  8, dim: 128, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
-  MLP-H-1: {model: MLP, depth:  1, dim: 256, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
-  MLP-V-1: {model: MLP, depth:  1, dim: 512, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
-  MLP-U-1: {model: MLP, depth:  1, dim: 1024, expansion: 4, dropout: 0.1, drop_path: null, layer_scale: null, n_classes: *n_class, is_focal: *is_focal}
-
-
-MoE: 
-  None: null
-  Token-MoE-2-4-2-8:  {type: token, cycle: 2, n_experts:  4, topK: 2, capacity:  8, loss_weights: {imp: 1.0e-2, load: 0.0} }
-  Token-MoE-2-4-1-1:  {type: token, cycle: 2, n_experts:  4, topK: 1, capacity:  1, loss_weights: {imp: 1.0e-2, load: 0.0} }
-  Token-MoE-2-4-1-4:  {type: token, cycle: 2, n_experts:  4, topK: 1, capacity:  4, loss_weights: {imp: 1.0e-2, load: 0.0} }
-  Token-MoE-2-4-1-8:  {type: token, cycle: 2, n_experts:  4, topK: 2, capacity:  8, loss_weights: {imp: 1.0e-2, load: 0.0} }
-  Token-MoE-2-4-1-16: {type: token, cycle: 2, n_experts:  4, topK: 1, capacity: 16, loss_weights: {imp: 1.0e-2, load: 0.0} }
-  Token-MoE-2-5-1-16: {type: token, cycle: 2, n_experts:  5, topK: 1, capacity: 16, loss_weights: {imp: 1.0e-2, load: 0.0} }
-  Token-MoE-2-5-1-4:  {type: token, cycle: 2, n_experts:  5, topK: 1, capacity:  4, loss_weights: {imp: 1.0e-2, load: 0.0} }
-  Token-MoE-2-4-4-32: {type: token, cycle: 2, n_experts:  4, topK: 4, capacity: 32, loss_weights: {imp: 1.0e-2, load: 0.0} }
-  Token-MoE-2-6-2-8:  {type: token, cycle: 2, n_experts:  4, topK: 2, capacity:  8, loss_weights: {imp: 1.0e-2, load: 0.0} }
-  Token-MoE-2-8-2-8:  {type: token, cycle: 2, n_experts:  4, topK: 2, capacity:  8, loss_weights: {imp: 1.0e-2, load: 0.0} }
-  Image-MoE-2-4-1:    {type: image, cycle: 2, n_experts:  4, topK: 1, capacity: -1, loss_weights: {imp: 1.0e-2, load: 0.0} }
-  Image-MoE-2-8-1:    {type: image, cycle: 2, n_experts:  8, topK: 1, capacity: -1, loss_weights: {imp: 1.0e-2, load: 0.0} }
-  Image-MoE-2-16-1:   {type: image, cycle: 2, n_experts: 16, topK: 1, capacity: -1, loss_weights: {imp: 1.0e-2, load: 0.0} }
 
 FiLM:
-  None: null
-  FiLM-4-4:   {depth:  4, dim:  4, dim_inner:  8, norm: null, activation: null, dropout: null}
-  FiLM-4-8:   {depth:  8, dim:  4, dim_inner:  8, norm: null, activation: null, dropout: null}
-  FiLM-4-16:  {depth: 16, dim:  4, dim_inner:  8, norm: null, activation: null, dropout: null}
-  FiLM-4-32:  {depth: 32, dim:  4, dim_inner:  8, norm: null, activation: null, dropout: null}
-  FiLM-8-32:  {depth: 32, dim:  8, dim_inner: 16, norm: null, activation: null, dropout: null}
-  FiLM-16-32: {depth: 32, dim: 16, dim_inner: 32, norm: null, activation: null, dropout: null}
-  FiLM-8-128:  {depth: 128, dim:  8, dim_inner: 16, norm: null, activation: True, dropout: 0.1}
-  FiLM-8-128v2:  {depth: 128, dim:  8, dim_inner: 16, norm: null, activation: null, dropout: null}
+  MLP: 
+    depth: [int, 4, L]
+    dim: [int, 4, D]
+    expansion: [int, 2, E]
+    norm: [bool, 0, NM]
+    activation: [bool, 1, AC]
+    dropout: [float, 0.0, DR]
+    w_init: [str, null, WI]
 
+MoE:
+  Token: 
+    moe: [str, token, T]
+    cycle: [int, 2, NC]
+    n_experts: [int, 16, NE]
+    topK: [int, 2, K]
+    capacity: [int, 4, C]
+    loss_w_imp: [float, 1.0e-2, LI]
+    loss_w_load: [float,1.0e-2, LL]
+    w_init: [str, null, WI]
+  SMoE: 
+    moe: [str, SMoE, T]
+    cycle: [int, 2, NC]
+    n_experts: [int, 16, NE]
+    topK: [int, 2, K]
+    capacity: [int, 4, C]
+    loss_w_imp: [float, 1.0e-2, LI]
+    loss_w_load: [float,1.0e-2, LL]
+    w_init: [str, null, WI]
+  XMoE: 
+    moe: [str, XMoE, T]
+    cycle: [int, 2, NC]
+    n_experts: [int, 16, NE]
+    topK: [int, 1, K]
+    capacity: [int, 4, C]
+    dim_e_factor: [int, 2, DE]
+    loss_w_load: [float,1.0e-2, LL]
+    w_init: [str, null, WI]
+  ECMoE: 
+    moe: [str, ECMoE, T]
+    cycle: [int, 2, NC]
+    n_experts: [int, 16, NE]
+    topK: [int, 1, K]
+    loss_w_imp: [float, 0.0, LI]
+    loss_w_load: [float,0.0, LL]
+    loss_w_label: [float,0.0, LS]
+    w_init: [str, null, WI]
 
-#dropout: &dropout 0.1
+norm:
+  IN:
+    type: [str, InstanceNorm, T]
+    create_scale: [bool, 1, CS]
+    create_offset: [bool, 1, CO]
+    data_format: [str, channel_last, DF]
+  BN:
+    type: [str, BatchNorm, T]
+    create_scale: [bool, 1, CS]
+    create_offset: [bool, 1, CO]
+    decay_rate: [float, 0.0, DR]
+    data_format: [str, channel_last, DF]
+  LN:
+    type: [str, LayerNorm, T]
+    axis: [int, -1, AX]
+    create_scale: [bool, 1, CS]
+    create_offset: [bool, 1, CO]
+  GN:
+    type: [str, GroupNorm, T]
+    groups: [int, 4, G]
+    axis: [int, -1, AX]
+    create_scale: [bool, 1, CS]
+    create_offset: [bool, 1, CO]
+  GRN:
+    type: [str, GRN, T]
+    eps: [float, 1.0e-6, E]
+
+head:
+  MLP:
+    depth: [int, 1, L]
+    dim: [int, 16, D]
+    expansion: [int, 4, E]
+    dropout: [float, 0.1, DR]
+    drop_path: [float, null, DP]
+    layer_scale: [float, null, LS]
+    focal: [bool, 0, FC]
+    w_init: [str, null, WI]
+  PN:
+    depth: [int, 1, L]
+    dim: [int, 256, D]
+    dropout: [float, 0.1, DR]
+    w_init: [str, null, WI]
+
+pooling:
+  GAP:
+    axis: [int, 1, A]
+  AP:
+    dim: [int, 16, D]
+    expansion: [int, 4, E]
+    n_heads: [int, 4, H]
+    dropout: [float, 0.1, DR]
+    qkv_bias: [bool, 1, AB]
+    k: [int, 1, K]
+  GP:
+    gidx: [int, 0, G]
 
 model:
-  
-  gMLP-S:  {patch_size: 4, depth:  4, dim:   32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null, n_classes: *n_class}
-  gMLP-M:  {patch_size: 4, depth:  8, dim:   64, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null, n_classes: *n_class}
-  gMLP-L:  {patch_size: 4, depth: 16, dim:  128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null, n_classes: *n_class}
-  
-  CNN-64: {dim: 64, depth: 4, patch_size: 16, n_classes: *n_class}
-  Test: {dim: 20, depth: 4, patch_size: 16, n_classes: *n_class}
-  
-  Test:     {model: Test,  patch_size: 4, depth:  4, dim:  16, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4}
-  GoB-S-2:  {model: GoB,   patch_size: 4, depth:  2, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
-  GoB-S-4:  {model: GoB,   patch_size: 4, depth:  4, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
-  GoB-S-8:  {model: GoB,   patch_size: 4, depth:  8, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
-  
-  ViT-T-4:   {model: ViT,  patch_size: 4, depth:   4, dim:  16, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
-  ViT-T-16:  {model: ViT,  patch_size: 4, depth:  16, dim:  16, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
-  ViT-S-4:   {model: ViT,  patch_size: 4, depth:   4, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
-  ViT-S-8:   {model: ViT,  patch_size: 4, depth:   8, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
-  ViT-S-16:  {model: ViT,  patch_size: 4, depth:  16, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
-  
-  ViT-M-4:   {model: ViT,  patch_size: 4, depth:   4, dim:  64, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
-  ViT-M-8:   {model: ViT,  patch_size: 4, depth:   8, dim:  64, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
-  ViT-M-16:  {model: ViT,  patch_size: 4, depth:  16, dim:  64, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
-  ViT-L-4:   {model: ViT,  patch_size: 4, depth:   4, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
-  ViT-L-8:   {model: ViT,  patch_size: 4, depth:   8, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
-  ViT-L-16:  {model: ViT,  patch_size: 4, depth:  16, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
-  ViT-L-32:  {model: ViT,  patch_size: 4, depth:  32, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
-  ViT-L-64:  {model: ViT,  patch_size: 4, depth:  64, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
-  ViT-L-128: {model: ViT,  patch_size: 4, depth: 128, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
-  ViT-H-16:  {model: ViT,  patch_size: 4, depth:  16, dim: 256, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
-  ViT-V-16:  {model: ViT,  patch_size: 4, depth:  16, dim: 512, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
-  ViT-U-16:  {model: ViT,  patch_size: 4, depth:  16, dim: 1024, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4, qkv_bias: False}
-  
-  Mixer-S-4-2: {model: Mixer, patch_size: 2, depth:  4, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
-  Mixer-S-4:   {model: Mixer, patch_size: 4, depth:  4, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
-  Mixer-S-8:   {model: Mixer, patch_size: 4, depth:  8, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
-  Mixer-S-16:  {model: Mixer, patch_size: 4, depth: 16, dim:  32, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
-  Mixer-M-4:   {model: Mixer, patch_size: 4, depth:  4, dim:  64, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
-  Mixer-M-8:   {model: Mixer, patch_size: 4, depth:  8, dim:  64, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
-  Mixer-M-8-2: {model: Mixer, patch_size: 2, depth:  8, dim:  64, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
-  Mixer-M-16:  {model: Mixer, patch_size: 4, depth: 16, dim:  64, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
-  Mixer-L-4:   {model: Mixer, patch_size: 4, depth:  4, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: 1.0e-4}
-  Mixer-L-8:   {model: Mixer, patch_size: 4, depth:  8, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
-  Mixer-L-16:  {model: Mixer, patch_size: 4, depth: 16, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
-  Mixer-L-32:  {model: Mixer, patch_size: 4, depth: 32, dim: 128, expansion: 4, n_heads:  4, dropout:  0.0, drop_path:  0.0, layer_scale: 1.0e-4}
-  Mixer-L-64:  {model: Mixer, patch_size: 4, depth: 64, dim: 128, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
-  Mixer-VL-4:  {model: Mixer, patch_size: 4, depth:  4, dim: 256, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
-  Mixer-VVL-4: {model: Mixer, patch_size: 4, depth:  4, dim: 512, expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
-  Mixer-H-4:   {model: Mixer, patch_size: 4, depth:  4, dim: 1024,expansion: 4, n_heads:  4, dropout:  0.1, drop_path:  0.1, layer_scale: null}
+  ViT:
+    patch_size: [int, 4, PS]
+    depth: [int, 4, L]
+    dim: [int, 16, D]
+    expansion: [int, 4, E]
+    n_heads: [int, 4, H]
+    dropout: [float, 0.1, DR]
+    drop_path: [float, 0.1, DP]
+    layer_scale: [float, 1.0e-4, LS]
+    qkv_bias: [bool, 1, AB]
+    w_init: [str, null, WI]
+  GoB:
+    depth: [int, 4, L]
+    dim: [int, 16, D]
+    expansion: [int, 4, E]
+    n_heads: [int, 4, H]
+    dropout: [float, 0.1, DR]
+    drop_path: [float, 0.1, DP]
+    layer_scale: [float, 1.0e-4, LS]
+    qkv_bias: [bool, T1, AB]
+    w_init: [str, null, WI] 
+  Mixer:
+    patch_size: [int, 4, PS]
+    depth: [int, 4, L]
+    dim: [int, 16, D]
+    expansion: [int, 4, E]
+    n_heads: [int, 4, H]
+    dropout: [float, 0.1, DR]
+    drop_path: [float, null, DP]
+    layer_scale: [float, null, LS]
+    w_init: [str, null, WI]
+  FvT:
+    depth: [int, 4, L]
+    dim: [int, 16, D]
+    expansion: [int, 4, E]
+    n_heads: [int, 4, H]
+    dropout: [float, 0.1, DR]
+    drop_path: [float, 0.1, DP]
+    layer_scale: [float, 1.0e-4, LS]
+    qkv_bias: [bool, 1, AB]
+    w_init: [str, null, WI]
+  PN:
+    depth: [int, 3, L]
+    in_depth: [int, 3, I]
+    dim: [int, 64, D]
+    expansion: [int, 2, E]
+    K: [int, 16, K]
 
 
 

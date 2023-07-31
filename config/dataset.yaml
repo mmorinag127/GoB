@@ -1,0 +1,305 @@
+signal_higgs: &signal_higgs
+  H -> ss: 0
+  H -> cc: 1
+  H -> bb: 2
+
+signal_hzqcd: &signal_hzqcd
+  names: [low, mid, full]
+  samples:
+    H -> ss: [0,0,0]
+    H -> cc: [1,1,1]
+    H -> bb: [2,2,2]
+    Z -> ss: [0,0,3]
+    Z -> cc: [1,1,4]
+    Z -> bb: [2,2,5]
+    g -> uu: [3,3,6]
+    g -> dd: [3,3,6]
+    g -> ss: [3,0,7]
+    g -> cc: [3,1,8]
+    g -> bb: [3,2,9]
+    g -> others: [3,3,10]
+    d -> others: [4,4,11]
+    u -> others: [4,4,11]
+    s -> others: [4,5,12]
+    c -> others: [4,6,13]
+    b -> others: [4,7,14]
+
+new_dataset_64_qcd:
+  compression: 'ZLIB'
+  datafile_pattern: 'data/large-R/2023-01-25/higgs-scb-qcd/sample-64-1.0-ver1'
+  datafiles: ['data/large-R/2023-01-25/higgs-scb-qcd/sample-64-1.0-ver1-*.tfrec']
+  cache: 
+    null
+    # train: 'data/large-R/2023-01-25/cache/higgs-scb-qcd/sample-64-1.0-ver1-train-0-100.tfrec'
+    # test: 'data/large-R/2023-01-25/higgs-scb-qcd/cache/sample-64-1.0-ver1-test-0-100.tfrec'
+  batch_sizes: {train: 1024, test: 128}
+  var_list:
+    image: bytes
+    label: int
+    glob: bytes
+  split_N: 100
+  split_idx: 0
+  n_prefetch: 8
+  autotune: 64
+  n_events:
+    total: 37813896
+    H -> ss: 1915408
+    H -> cc: 1960586
+    H -> bb: 1862663
+    g -> dd:  646564
+    g -> uu:  652391
+    g -> ss:  576388
+    g -> cc:  400774
+    g -> bb:  233213
+    d -> others: 3863652
+    u -> others: 3752291
+    s -> others: 3716298
+    c -> others: 4380577
+    b -> others: 7487882
+    g -> others: 6365209
+  
+new_dataset_hzqcd_64:
+  compression: 'ZLIB'
+  datafile_pattern: 'data/large-R/2023-01-25/hzqcd/sample-64-1.0-ver1'
+  datafiles: ['/raid/morinaga/large-R/2023-01-25/hzqcd/sample-64-1.0-ver1-*.tfrec']
+  cache: 
+    null
+  batch_sizes: {train: 1024, test: 1024}
+  var_list:
+    image: bytes
+    label_full: int
+    label_mid: int
+    label_low: int
+    glob: bytes
+  label_name: label_mid
+  split_N: 100
+  split_idx: 0
+  n_prefetch: 8
+  autotune: null
+  label_table: *signal_hzqcd  
+  glob_list: [Pt, Eta, M, n_charged, n_neutral]
+  data_list: [image, label_full, label_mid, label_low, glob]
+  n_events: 
+    total: 45857792
+  data_def: 
+    type: image
+    kwargs:
+      n_pixel: 64
+      dR: 1.0
+      ch_list: [track, EMCal, HCal, d0, pt]
+      ch_last: True
+    
+hzqcd_graph_v1:
+  compression: 'ZLIB'
+  datafile_pattern: 'data/large-R/2023-01-25/hzqcd_graph_v1/sample-256-ver1'
+  #datafiles: ['/raid/morinaga/large-R/2023-01-25/hzqcd_graph_v1/sample-256-ver1-*.tfrec']
+  datafiles: ['data/large-R/2023-01-25/hzqcd_graph_v1/sample-256-ver1-*.tfrec']
+  cache: 
+    null
+  #batch_sizes: {train: 1024, test: 1024}
+  batch_sizes: {train: 2048, test: 1024}
+  var_list:
+    node: bytes
+    mask: bytes
+    label_full: int
+    label_mid: int
+    label_low: int
+    glob: bytes
+  label_name: {label_mid: label}
+  split_N: 100
+  split_idx: 0
+  n_prefetch: 8
+  autotune: null
+  label_table: *signal_hzqcd  
+  n_events: 
+    total  : 49892040
+    H -> ss:  1915408
+    H -> cc:  1960586
+    H -> bb:  1862663
+    Z -> ss:  1937696
+    Z -> cc:  1982207
+    Z -> bb:  1871392
+    u -> xx:  6315093
+    d -> xx:  5809299
+    s -> xx:  4112375
+    c -> xx:  4638861
+    b -> xx:  7692253
+    g -> xx:  7029733
+    g -> uu:   719416
+    g -> dd:   712648
+    g -> ss:   634734
+    g -> cc:   441340
+    g -> bb:   256336
+  glob_list: [Pt, Eta, M, n_charged, n_neutral]
+  data_list: [node, mask, label_full, label_mid, label_low, glob]
+  data_def: 
+    type: node
+    kwargs:
+      ch_list: [track, EMCal, HCal, d0, pt, eta, phi]
+      n_max_seq: 256
+
+hzqcd_graph_v2:
+  compression: 'ZLIB'
+  datafile_pattern: 'data/large-R/2023-01-25/hzqcd_graph_v2/sample-256-ver1'
+  datafiles: ['data/large-R/2023-01-25/hzqcd_graph_v2/sample-256-ver1-*.tfrec']
+  cache: False
+  #batch_sizes: {train: 1024, test: 1024}
+  batch_sizes: {train: 4096, test: 2048}
+  var_list:
+    obj_x: bytes
+    obj_one_hot: bytes
+    obj_mask: bytes
+    label_full: int
+    label_mid: int
+    label_low: int
+    glob: bytes
+  label_name: {label_mid: label}
+  split_N: 100
+  split_idx: 0
+  n_prefetch: 8
+  autotune: null
+  label_table: *signal_hzqcd  
+  n_events: 
+    total  : 49892040
+    H -> ss:  1915408
+    H -> cc:  1960586
+    H -> bb:  1862663
+    Z -> ss:  1937696
+    Z -> cc:  1982207
+    Z -> bb:  1871392
+    u -> xx:  6315093
+    d -> xx:  5809299
+    s -> xx:  4112375
+    c -> xx:  4638861
+    b -> xx:  7692253
+    g -> xx:  7029733
+    g -> uu:   719416
+    g -> dd:   712648
+    g -> ss:   634734
+    g -> cc:   441340
+    g -> bb:   256336
+  glob_list: [Pt, Eta, M, n_charged, n_neutral]
+  data_list: [obj_x, obj_one_hot, obj_mask, label_full, label_mid, label_low, glob]
+  data_def: 
+    type: object
+    kwargs:
+      track_list: [track, d0, pt, eta, phi]
+      cluster_list: [EMCal, HCal, pt, eta, phi]
+      n_max_seq: 256
+    
+hzqcd_pn_v1:
+  compression: 'ZLIB'
+  datafile_pattern: 'data/large-R/2023-01-25/hzqcd_pn_v2/sample-256-ver1'
+  datafiles: ['data/large-R/2023-01-25/hzqcd_pn_v2/sample-256-ver1-*.tfrec']
+  cache: null
+  #batch_sizes: {train: 1024, test: 512}
+  batch_sizes: {train: 4096, test: 2048}
+  #batch_sizes: {train: 512, test: 2048}
+  var_list:
+    position: bytes
+    feature: bytes
+    one_hot: bytes
+    mask: bytes
+    label_full: int
+    label_mid: int
+    label_low: int
+    glob: bytes
+  label_name: {label_mid: label}
+  n_prefetch: 16
+  autotune: null
+  label_table: *signal_hzqcd  
+  n_events: 
+    total  : 49892040
+    H -> ss:  1915408
+    H -> cc:  1960586
+    H -> bb:  1862663
+    Z -> ss:  1937696
+    Z -> cc:  1982207
+    Z -> bb:  1871392
+    u -> xx:  6315093
+    d -> xx:  5809299
+    s -> xx:  4112375
+    c -> xx:  4638861
+    b -> xx:  7692253
+    g -> xx:  7029733
+    g -> uu:   719416
+    g -> dd:   712648
+    g -> ss:   634734
+    g -> cc:   441340
+    g -> bb:   256336
+  glob_list: [Pt, Eta, M, n_charged, n_neutral]
+  data_list: [position, feature, one_hot, mask, label_full, label_mid, label_low, glob]
+  data_def: 
+    type: pn_obj
+    kwargs:
+      track_list: [pt, eta, phi, d0]
+      cluster_list: [pt, eta, phi, EMCal, HCal]
+      n_max_seq: 256
+      n_glob: 5
+
+top_data_v1:
+  compression: 'ZLIB'
+  datafiles: {train: ['data/top-data/train/*.tfrec'], test: ['data/top-data/test/*.tfrec']}
+  cache: null
+  #batch_sizes: {train: 384, test: 1000}
+  # batch_sizes: {train: 4096, test: 1000}
+  #batch_sizes: {train: 4096, test: 1000}
+  batch_sizes: {train: 512, test: 2000}
+  n_max: 100
+  var_list:
+    position: bytes
+    feature: bytes
+    mask: bytes
+    label: int
+  n_prefetch: 8
+  label_name: {label: label}
+  autotune: null
+  label_table: *signal_hzqcd  
+  n_events: 
+    train: 1211000
+    test:   404000
+    valid:  403000
+  data_list: [position, feature, mask, label]
+  data_def: 
+    type: top_data
+    kwargs:
+      track_list: [pt_log, e_log, logptrel, logerel, deltaR]
+      n_max_seq: 200
+
+orig_dataset:
+  var_list: 
+    n_cnst: int
+  data_dir: data/large-R/2023-01-25
+  datafiles: [higgs_ss-*.tfrecord, higgs_cc-*.tfrecord, higgs_bb*.tfrecord, QCD_*.tfrecord, Zjets_ss*.trfrecord, Zjets_cc*.tfrecord, Zjets_bb*.tfrecord]
+  #datafiles: [higgs_ss*10.0-8*tfrecord]
+  compression: ''
+
+dataset:
+  var_list: 
+    label0: int
+    label1: int
+    label2: int
+    label: str
+    n_cnst: int
+    pt: float-ragged
+    eta: float-ragged
+    phi: float-ragged
+    track: float-ragged
+    EMCal: float-ragged
+    HCal: float-ragged
+    d0: float-ragged
+    d0_: float-ragged
+    charge: float-ragged
+    Pt: float-fix
+    Eta: float-fix
+    Phi: float-fix
+    E: float-fix
+    M: float-fix
+    n_charged: float-fix
+    n_neutral: float-fix
+  data_dir: data/large-R/2023-01-25
+  datafiles: [higgs_ss-*.tfrecord, higgs_cc-*.tfrecord, higgs_bb*.tfrecord, QCD_*.tfrecord, Zjets_ss*.tfrecord, Zjets_cc*.tfrecord, Zjets_bb*.tfrecord]
+  #datafiles: [higgs_ss*10.0-8*tfrecord]
+  compression: ''
+  
+

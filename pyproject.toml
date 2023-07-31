@@ -32,6 +32,10 @@ scikit-learn = "^1.2.0"
 numpy = "1.23.3"
 tensorflow-datasets = "^4.7.0"
 tensorrt = "^8.5.2.2" # To diable many warning message from tensorflow
+tensorboard-plugin-profile = "^2.11.1"
+tensorboard = "^2.11.2"
+uproot-methods = "^0.9.2"
+tables = "^3.8.0"
 
 
 [tool.poetry.dev-dependencies]

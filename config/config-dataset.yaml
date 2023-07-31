@@ -1,0 +1,183 @@
+signal_higgs: &signal_higgs
+  H -> ss: 0
+  H -> cc: 1
+  H -> bb: 2
+
+signal_higgs_qcd: &signal_higgs_qcd
+  H -> ss: 0
+  H -> cc: 1
+  H -> bb: 2
+  g -> uu: 3
+  g -> dd: 3
+  g -> ss: 4
+  g -> cc: 5
+  g -> bb: 6
+  d -> others: 7
+  u -> others: 7
+  s -> others: 8
+  c -> others: 9
+  b -> others: 10
+  g -> others: 11
+
+signal_hzqcd: &signal_hzqcd
+  names: [low, mid, full]
+  samples:
+    H -> ss: [0,0,0]
+    H -> cc: [1,1,1]
+    H -> bb: [2,2,2]
+    Z -> ss: [0,0,3]
+    Z -> cc: [1,1,4]
+    Z -> bb: [2,2,5]
+    g -> uu: [3,3,6]
+    g -> dd: [3,3,7]
+    g -> ss: [3,0,8]
+    g -> cc: [3,1,9]
+    g -> bb: [3,2,10]
+    g -> others: [3,3,11]
+    d -> others: [4,4,12]
+    u -> others: [4,4,12]
+    s -> others: [4,5,13]
+    c -> others: [4,6,14]
+    b -> others: [4,7,15]
+
+signal_full : &signal_full
+  W -> du: 0
+  W -> sc: 0
+  t -> du: 0
+  t -> sc: 0
+  Z -> uu: 1
+  Z -> dd: 1
+  Z -> ss: 2
+  Z -> cc: 3
+  Z -> bb: 4
+  g -> dd: 1
+  g -> uu: 1
+  g -> ss: 2
+  g -> cc: 3
+  g -> bb: 4
+  H -> ss: 2
+  H -> cc: 3
+  H -> bb: 4
+  g -> others: 5
+  d -> others: 5
+  u -> others: 5
+  s -> others: 5
+  c -> others: 5
+  b -> others: 5
+
+new_dataset32:
+  compression: ''
+  datafile_pattern: 'data/large-R/2023-01-25/higgs-scb/sample-32-1.0-ver1'
+  datafiles: ['data/large-R/2023-01-25/higgs-scb/sample-32-1.0-ver1-*.tfrec']
+  cache: {train: 'data/large-R/2023-01-25/cache/higgs-scb/sample-32-1.0-ver1-train-0-50.tfrec', test: 'data/large-R/2023-01-25/cache/higgs-scb/sample-32-1.0-ver1-test-0-50.tfrec'}
+  batch_sizes: {train: 1024, test: 128}
+  var_list:
+    image: bytes
+    label: int
+    glob: bytes
+  split_N: 100
+  split_idx: 0
+  n_prefetch: 8
+  autotune: 64
+input_shape:
+  #image: [32, 32, 5]
+  image: [64, 64, 5]
+  glob: [5]
+
+new_dataset_64_qcd:
+  compression: 'ZLIB'
+  datafile_pattern: 'data/large-R/2023-01-25/higgs-scb-qcd/sample-64-1.0-ver1'
+  datafiles: ['data/large-R/2023-01-25/higgs-scb-qcd/sample-64-1.0-ver1-*.tfrec']
+  cache: 
+    null
+    # train: 'data/large-R/2023-01-25/cache/higgs-scb-qcd/sample-64-1.0-ver1-train-0-100.tfrec'
+    # test: 'data/large-R/2023-01-25/higgs-scb-qcd/cache/sample-64-1.0-ver1-test-0-100.tfrec'
+  batch_sizes: {train: 1024, test: 128}
+  var_list:
+    image: bytes
+    label: int
+    glob: bytes
+  split_N: 100
+  split_idx: 0
+  n_prefetch: 8
+  autotune: 64
+  n_events:
+    total: 37813896
+    H -> ss: 1915408
+    H -> cc: 1960586
+    H -> bb: 1862663
+    g -> dd:  646564
+    g -> uu:  652391
+    g -> ss:  576388
+    g -> cc:  400774
+    g -> bb:  233213
+    d -> others: 3863652
+    u -> others: 3752291
+    s -> others: 3716298
+    c -> others: 4380577
+    b -> others: 7487882
+    g -> others: 6365209
+  
+
+new_dataset_hzqcd_64:
+  compression: 'ZLIB'
+  datafile_pattern: 'data/large-R/2023-01-25/hzqcd/sample-64-1.0-ver1'
+  #datafiles: ['data/large-R/2023-01-25/hzqcd/sample-64-1.0-ver1-*.tfrec']
+  datafiles: ['/raid/morinaga/large-R/2023-01-25/hzqcd/sample-64-1.0-ver1-*.tfrec']
+  cache: 
+    null
+    # test: 'data/large-R/2023-01-25/hzqcd/cache/sample-64-1.0-ver1-test-0-100.tfrec'
+  batch_sizes: {train: 1024, test: 1024}
+  var_list:
+    image: bytes
+    label_full: int
+    label_mid: int
+    label_low: int
+    glob: bytes
+  label_name: label_mid
+  split_N: 100
+  split_idx: 0
+  n_prefetch: 8
+  autotune: null
+  n_events: 
+    total: 45857792
+
+dataset:
+  var_list: 
+    label0: int
+    label1: int
+    label2: int
+    label: str
+    n_cnst: int
+    pt: float-ragged
+    eta: float-ragged
+    phi: float-ragged
+    track: float-ragged
+    EMCal: float-ragged
+    HCal: float-ragged
+    d0: float-ragged
+    d0_: float-ragged
+    charge: float-ragged
+    Pt: float-fix
+    Eta: float-fix
+    Phi: float-fix
+    E: float-fix
+    M: float-fix
+    n_charged: float-fix
+    n_neutral: float-fix
+  data_dir: data/large-R/2023-01-25
+  datafiles: [higgs_ss-*.tfrecord, higgs_cc-*.tfrecord, higgs_bb*.tfrecord, QCD_*.tfrecord, Zjets_ss*.trfrecord, Zjets_cc*.tfrecord, Zjets_bb*.tfrecord]
+  compression: ''
+  image:
+    n_pixel: 64
+    dR: 1.0
+    ch_list: [track, EMCal, HCal, d0, pt]
+    ch_last: True
+  node:
+    ch_list: [track, EMCal, HCal, d0, pt, eta, phi, charge]
+    n_max_seq: 100
+  label_table: *signal_hzqcd
+  glob_list: [Pt, Eta, M, n_charged, n_neutral]
+  data_list: [image, label_full, label_mid, label_low, glob]
+  
+

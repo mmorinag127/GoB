@@ -11,8 +11,8 @@ plt.style.use('/home/morinaga/.matplotlib/stylelib/nord-light.mplstyle')
 
 from color import nord_color
 colors = [nord_color.color(c) for c in ('red', 'green', 'blue', 'yellow', 'violet', 'dark3', 'orange', 'frost light blue') ]
-colors = [nord_color.color(c) for c in ('frost green', 'green', 'yellow', 'orange', 'red',
-                                        'violet', 'frost light blue',  'blue', 'light0') ]
+colors = [nord_color.color(c) for c in ('frost green', 'green', 'yellow', 'orange', 'red', 
+                                        'violet', 'frost light blue',  'blue', 'light0', ) ]
 
 cmap = plt.cm.get_cmap('nord_rainbow', 100)
 
@@ -75,7 +75,12 @@ def plot_curves(X, Y, Axis, labels, figname, is_log = None):
     fig = plt.figure(figsize=(8.0, 6.0 ) )
     gs = fig.add_gridspec(nrows = 1, hspace=0)
     ax = gs.subplots(sharex=True, sharey=True)
-    
+    if len(labels) > 1:
+        colors = nord_color.get_colors(len(labels), name = 'nord_rainbow')
+    else:
+        colors = [nord_color.color(c) for c in ('frost green', 'green', 'yellow', 'orange', 'red', 
+                                        'violet', 'frost light blue',  'blue', 'light0', ) ]
+        
     for i, (x, y, label) in enumerate(zip(X, Y, labels)):
         ax.plot(x, y, '-', alpha = 1.0, label = label, color = colors[i])
     
@@ -167,7 +172,7 @@ def plot_1d(X, var, figname, is_norm = False):
     gs = fig.add_gridspec(nrows = 1, ncols = 1, hspace=0)
     ax = gs.subplots(sharex=False, sharey=False)
     
-    from matplotlib.colors import LogNorm
+    colors = nord_color.get_colors(len(X), name = 'nord_rainbow')
     
     for i, (key, val) in enumerate(X.items()):
         weights = np.ones(len(val))/float(len(val)) if is_norm else None
@@ -185,7 +190,8 @@ def plot_1d(X, var, figname, is_norm = False):
                                     linewidth = 1.5)
         if var.is_log:
             ax.set_yscale('log')
-    from matplotlib.ticker import AutoMinorLocator
+            
+    # from matplotlib.ticker import AutoMinorLocator
     #ax.xaxis.set_minor_locator(AutoMinorLocator(4))
     #ax.yaxis.set_minor_locator(AutoMinorLocator(4))
     ax.set_xlim( var.range )
@@ -207,8 +213,12 @@ def plot_1d_eff(X, Y, var, figname, is_norm = False):
     gs = fig.add_gridspec(nrows = 1, ncols = 1, hspace=0)
     ax = gs.subplots(sharex=False, sharey=False)
     
-    from matplotlib.colors import LogNorm
-    
+    if len(X) > 1:
+        colors = nord_color.get_colors(len(X), name = 'nord_rainbow')
+    else:
+        colors = [nord_color.color(c) for c in ('frost green', 'green', 'yellow', 'orange', 'red', 
+                                        'violet', 'frost light blue',  'blue', 'light0', ) ]
+
     for i, (key, val) in enumerate(X.items()):
         ax.plot(Y[key], val, label = key, 
                                     alpha = 1.0, 
@@ -236,8 +246,10 @@ def make_MoE_plot(labels, ew, figname, cbar_lim = None):
     gs = fig.add_gridspec(nrows = 1, hspace=0)
     ax = gs.subplots(sharex=True, sharey=True)
     cmap = 'nord_mono_blue'
-    
-    im = ax.imshow(ew, interpolation='nearest', cmap = cmap, vmin = cbar_lim[0], vmax = cbar_lim[1])
+    vmin, vmax = None, None
+    if cbar_lim is not None:
+        vmin, vmax = cbar_lim
+    im = ax.imshow(ew, interpolation='nearest', cmap = cmap, vmin = vmin, vmax = vmax)
     
     # We want to show all ticks...
     ax.set(xticks = np.arange(ew.shape[1]), yticks = np.arange(ew.shape[0]),
@@ -265,7 +277,6 @@ def make_MoE_plot(labels, ew, figname, cbar_lim = None):
     plt.savefig(figname, dpi=300)
     plt.close()
     print(f'{figname} is done...')
-
 
 def sigmoid(a):
     return 1 / (1 + np.exp(-a))
@@ -296,7 +307,6 @@ class Variables:
         for var in self.vars.keys():
             v = self.vars[var]
             print(var, v.values.shape)
-            print(self.masks['g-jet'].shape)
             X = { k:v.values[mask] for k, mask in self.masks.items()}
             plot_1d(X, v, figname = f'{figname}/{v.name}.png', is_norm = is_norm)
     
@@ -372,6 +382,8 @@ def make_roc_curve(jet_labels, probs, labels, fig_dir):
     mkdir(fig_dir)
     from sklearn import metrics
     
+    print(jet_labels)
+    print(labels)
     one_hot = np.eye(len(jet_labels))[labels]
     X, Y, R, L = [], [], [], []
     for i in range(len(jet_labels)):
@@ -415,9 +427,6 @@ def make_roc_curve_2(probs, labels, sig_label, bkg_labels, fig_dir):
     
     X, Y, R, L = [], [], [], []
     sig = jet_to_label(sig_label)
-    
-    
-    
     
     for i, bkg_label in enumerate(bkg_labels):
         bkg = jet_to_label(bkg_label)
@@ -483,14 +492,7 @@ def naive_top_k(data, k, axis = -1):
     index = jnp.moveaxis(index, 0, -1)
     return index
 
-def main(opts):
-    
-    norm = False
-    #norm = True
-    
-    
-    jet_labels = ['g-jet', 'd-jet', 'u-jet', 's-jet', 'c-jet', 'b-jet'] 
-    jet_labels = ['b-jet', 'c-jet', 's-jet', 'ud-jet', 'g-jet']
+def main(opts, jet_labels):
     
     workdir = opts.workdir
     print(workdir)
@@ -498,21 +500,13 @@ def main(opts):
     print(fig_dir)
     mkdir(fig_dir)
     mkdir(f'{fig_dir}/hist1d')
-    mkdir(f'{fig_dir}/hist2d')
-
-    
-    
+    if opts.glob:
+        mkdir(f'{fig_dir}/hist2d')
     
     logits, labels = open_npz(f'{workdir}/eval-outputs.npz')
     labels = labels.astype(int)
     print('logits.shape', logits.shape)
     print('labels.shape', labels.shape)
-    
-    expert_weights = None
-    if not opts.isNotMoE:
-        expert_weights = open_npz(f'{workdir}/eval-outputs.npz', xlist=['expert_weights'])[0]
-        print('expert_weights.shape', expert_weights.shape)
-        mkdir(f'{fig_dir}/MoE')
     
     scores = softmax(sigmoid(logits))
     print(scores.shape)
@@ -535,33 +529,6 @@ def main(opts):
     # make_roc_curve_2(probs, labels, sig_label = 'g-jet',  bkg_labels = ['ud-jet', 'uds-jet', 'b-jet', 'c-jet'], fig_dir = f'{fig_dir}/ROC/g-jet')
     # make_roc_curve_2(probs, labels, sig_label = 's-jet',  bkg_labels = ['ud-jet', 'g-jet', 'udg-jet'],          fig_dir = f'{fig_dir}/ROC/s-jet')
     # make_roc_curve_2(probs, labels, sig_label = 'l-jet',  bkg_labels = ['g-jet', 'b-jet', 'c-jet'],             fig_dir = f'{fig_dir}/ROC/l-jet')
-    if expert_weights is not None:
-        ews = []
-        
-        n_layer = expert_weights.shape[1]
-        print(expert_weights.shape)
-        for idx in range(n_layer):
-            ew = expert_weights[:, idx]
-            # ewsum = np.sum(ew, axis = (0, 1))
-            # m = np.mean(ewsum)
-            # s = np.std(ewsum)
-            ew = np.sum(ew, axis=1)/ew.shape[1]
-            
-            _ew = []
-            for i in range(len(jet_labels)):
-                mask = labels == i
-                # print(ew[mask].shape)
-                # _ew_i = ew[mask]/np.sum(ew[mask], axis=-1, keepdims=True)
-                m = np.mean(ew[mask], axis=0)
-                _ew.append(m)
-                
-            ew = np.stack(_ew)
-            ews.append(ew)
-            pass
-        Max = max(np.max(ew) for ew in ews)
-        Min = min(np.min(ew) for ew in ews)
-        for idx in range(n_layer):
-            make_MoE_plot(jet_labels, ews[idx], figname = f'{fig_dir}/MoE/expert_weights_layer{idx}.png', cbar_lim = [Min, Max])
     
     # confusion matrix
     from sklearn.metrics import confusion_matrix
@@ -578,13 +545,10 @@ def main(opts):
     plot_confution_matrix(normed_cm, jet_labels, figname = f'{fig_dir}/cm/purity.png', norm = 0 )
     plot_confution_matrix(normed_cm, jet_labels, figname = f'{fig_dir}/cm/efficiency.png', norm = 1 )
     
-def main_with_prop(opts):
+def main_with_prop(opts, jet_labels):
     
     norm = False
     #norm = True
-    
-    
-    jet_labels = ['b-jet', 'c-jet', 's-jet', 'ud-jet', 'g-jet']
     
     
     workdir = opts.workdir
@@ -596,14 +560,14 @@ def main_with_prop(opts):
     mkdir(f'{fig_dir}/hist1d-eff')
     mkdir(f'{fig_dir}/hist2d')
     
-    logits, labels, props = open_npz(f'{workdir}/eval-outputs.npz', xlist = ['logit', 'label', 'prop'])
+    logits, labels, globs = open_npz(f'{workdir}/eval-outputs.npz', xlist = ['logit', 'label', 'glob'])
     labels = labels.astype(int)
     print(logits.shape)
     print(labels.shape)
-    print(props.shape)
+    print(globs.shape)
     
     #pt, n_charged, n_neutral = props[:, 0], props[:, 1], props[:, 2]#, props[:, 3]
-    n_charged, n_neutral = props[:, 0], props[:, 1]
+    pt, eta, mass, n_charged, n_neutral = globs[:, 0], globs[:, 1], globs[:, 2], globs[:, 3], globs[:, 4]
     
     
     scores = softmax(sigmoid(logits))
@@ -613,10 +577,11 @@ def main_with_prop(opts):
     masks = { key: labels == i for i, key in enumerate(jet_labels) } 
     
     vars = Variables(masks)
-    vars.register(name = 'n_charged', label = r'#of charged',           bins = 20, range = [ 0, 20], values = n_charged, norm = norm)
-    vars.register(name = 'n_neutral', label = r'#of neutral',           bins = 20, range = [ 0, 20], values = n_neutral, norm = norm)
-    #vars.register(name = 'pt',        label = r'$p_{\mathrm{T}}$[GeV]', bins = 40, range = [15,115], values = pt, is_log = True, norm = norm)
-    #vars.register(name = 'eta',       label = r'$\eta$',                bins = 60, range = [-3,  3], values = eta, norm = norm)
+    vars.register(name = 'n_charged', label = r'#of charged',           bins = 50, range = [ 0, 50], values = n_charged, norm = norm)
+    vars.register(name = 'n_neutral', label = r'#of neutral',           bins = 50, range = [ 0, 50], values = n_neutral, norm = norm)
+    vars.register(name = 'pt',        label = r'$p_{\mathrm{T}}$[GeV]', bins = 40, range = [15,115], values = pt, is_log = True, norm = norm)
+    vars.register(name = 'eta',       label = r'$\eta$',                bins = 60, range = [-3,  3], values = eta, norm = norm)
+    vars.register(name = 'mass',      label = r'mass',                  bins = 50, range = [0, 200], values = mass, norm = norm)
     for i, jet_label in enumerate(jet_labels):
         #vars.register(name = f'out-{jet_label}',     label = f'{jet_label} out',      bins = 50, range = [-7.5,1.0], values = outputs[:, i], is_log = True)
         #vars.register(name = f'sigmoid-{jet_label}', label = f'{jet_label} sigmoid',  bins = 50, range = [-1.0,1.0], values = _outputs2[:, i], is_log = True)
@@ -624,7 +589,7 @@ def main_with_prop(opts):
     
     
     vars.plot_1d(figname = f'{fig_dir}/hist1d')
-    vars.plot_2d(figname = f'{fig_dir}/hist2d')
+    #vars.plot_2d(figname = f'{fig_dir}/hist2d')
 
     vars2 = Variables(masks)
     
@@ -655,9 +620,49 @@ def main_with_prop(opts):
     plot_confution_matrix(cm, jet_labels, figname = f'{fig_dir}/cm/raw.png', norm = -1 )
     plot_confution_matrix(normed_cm, jet_labels, figname = f'{fig_dir}/cm/purity.png', norm = 0 )
     plot_confution_matrix(normed_cm, jet_labels, figname = f'{fig_dir}/cm/efficiency.png', norm = 1 )
-    
-    
 
+
+def make_plot_moe(opts, jet_labels):
+    workdir = opts.workdir
+    print(workdir)
+    fig_dir = f'{workdir}/figs'
+    print(fig_dir)
+    mkdir(fig_dir)
+    mkdir(f'{fig_dir}/MoE')
+    
+    logits, labels, globs, mask, moe_scores = open_npz(f'{workdir}/eval-outputs.npz', xlist = ['logit', 'label', 'glob', 'mask', 'moe_score'])
+    labels = labels.astype(int)
+    print('logits    : ', logits.shape)
+    print('labels    : ', labels.shape)
+    print('global    : ', globs.shape)
+    print('mask      : ', mask.shape)
+    print('moe score : ', moe_scores.shape)
+    
+    label_prob = []
+    eps = 1.0e-5
+    n_layer = moe_scores.shape[-1]
+    for idx in range(n_layer):
+        moe_score = moe_scores[:, :, :, idx]
+        active_token = moe_score > eps
+        mean_score = np.where(mask==1 & active_token, moe_score, eps)
+        
+        
+        mean_score = np.mean(mean_score, axis=1)
+        
+        
+        label_p = []
+        for i in range(len(jet_labels)):
+            lmask = labels == i
+            label_p.append(np.mean(mean_score[lmask],axis=0))
+            
+        label_p = np.stack(label_p)
+        print(label_p.shape)
+        label_prob.append(label_p)
+        pass
+    Max = max(np.max(p) for p in label_prob)
+    Min = min(np.max(p) for p in label_prob)
+    for idx in range(n_layer):
+        make_MoE_plot(jet_labels, label_prob[idx], figname = f'{fig_dir}/MoE/expert_weights_layer{idx}.png', cbar_lim = None)#[Min, Max])
 class JetFeature:
     def __init__(self, sample, path, n_files, shape = (65536, 6)):
         self.sample = sample
@@ -721,13 +726,24 @@ if __name__ == '__main__':
     # parser.add_argument('-i',  '--id',         action = 'store', dest = 'id',         type = str, default = None)
     parser.add_argument('-mn', '--model_name', action = 'store', dest = 'model_name', type = str, default = 'nominal')
     parser.add_argument('-w', '--workdir',     action = 'store', dest = 'workdir',    type = str, default = None)
-    parser.add_argument('-m', '--isNotMoE',       action = 'store_true', dest = 'isNotMoE')
+    parser.add_argument('-m', '--moe',         action = 'store_true', dest = 'MoE')
 
     opts = parser.parse_args()
+    jet_labels = ['b-jet', 'c-jet', 's-jet', 'ud-jet', 'g-jet']
+    jet_labels = ['H->ss', 'H->cc', 'H->bb', 'g->uudd', 'g->ss', 'g->cc', 'g->bb', 'ud-quark', 's-quark', 'c-quark', 'b-quark', 'gluon']
+    jet_labels = ['ss', 'cc', 'bb', 'gluon', 'quark']
+    jet_labels = ['ss pair', 'cc pair', 'bb pair', 'gluon', 'ud-quark', 's-quark', 'c-quark', 'b-quark']
+    
+    jet_labels = ['QCD', 'top']
+    
     
     #main(opts)
-    main_with_prop(opts)
+    if opts.glob:
+        main_with_prop(opts, jet_labels = jet_labels)
+    else:
+        main(opts, jet_labels = jet_labels)
     #plot_jet_attr(opts)
-
+    if opts.MoE:
+        make_plot_moe(opts, jet_labels)
 
 

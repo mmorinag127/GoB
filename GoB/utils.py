@@ -5,6 +5,13 @@ import optax
 import numpy as np
 from copy import deepcopy
 
+
+def stack_forest(forest):
+    stack_args = lambda *args: np.stack(args)
+    print(forest)
+    print(forest.shape)
+    return jax.tree_util.tree_map(stack_args, *forest)
+
 def param_flatten(param, key = '', ret = {}, is_root = False):
     
     if type(param) is not dict:
@@ -17,6 +24,19 @@ def param_flatten(param, key = '', ret = {}, is_root = False):
             ret = param_flatten(param[k], next_key, ret)
     
     return ret
+
+def print_param(params, key, is_shape):
+    print('--'*10, f'{key}', '--'*10)
+    flatten = param_flatten(params, is_root = True)
+    for k, v in flatten.items():
+        print(f'  {k: >16s} : ')
+        print(v)
+
+def print_param_shape(params, key):
+    print('--'*10, f'{key}', '--'*10)
+    flatten = param_flatten(params, is_root = True)
+    for k, v in flatten.items():
+        print(f'  {k: >16s} : ', v.shape)
 
 def set_seed(seed = 1, logger = None):
     if logger is not None : 
@@ -45,7 +65,7 @@ def make_mixed_precision(config):
             return jmp.DynamicLossScale(jmp.half_dtype()(config.mp_policy.init_val))
         
         def make_mp_policy():
-            return jmp.Policy(param_dtype = jnp.float32, compute_dtype = jnp.float16, output_dtype = jnp.float32)
+            return jmp.Policy(param_dtype = jnp.float32, compute_dtype = jnp.bfloat16, output_dtype = jnp.float32)
     
     else:
         def initial_loss_scale():
@@ -56,50 +76,59 @@ def make_mixed_precision(config):
         
     return make_mp_policy, initial_loss_scale
 
-def make_optimizer(config, n_step_per_epoch):
-    opts = []
-    for key, val in config.optimizer.opts.items():
-        if hasattr(optax, key):
-            if val is not None:
-                opts += [getattr(optax, key)(**val)]
-            else:
-                opts += [getattr(optax, key)()]
-        else:
-            raise ValueError(f'make_optimizer dose not suppprt {key}!!')
-    
-    lr_scheduler = make_lr_scheduler(config, n_step_per_epoch)
+def make_optimizer(config):
     opt_name = config.setup.optimizer
-    if hasattr(optax, opt_name):
-        kwargs = deepcopy(config.optimizer[opt_name])
-        kwargs['learning_rate'] = lr_scheduler
-        opts.append(getattr(optax, opt_name)(**kwargs))
-    else:
+    if not hasattr(optax, opt_name):
         raise ValueError(f'{opt_name} is not known...')
     
-    def _make_optimizer():
+    @optax.inject_hyperparams
+    def _make_optimizer(learning_rate):
+        opts = []
+        for key, val in config.optimizer.opts.items():
+            if hasattr(optax, key):
+                if val is not None:
+                    opts += [getattr(optax, key)(**val)]
+                else:
+                    opts += [getattr(optax, key)()]
+            else:
+                raise ValueError(f'make_optimizer dose not suppprt {key}!!')
+        
+        kwargs = deepcopy(config.optimizer[opt_name])
+        kwargs['learning_rate'] = learning_rate
+        opts.append(getattr(optax, opt_name)(**kwargs))
         return optax.chain(*opts)
-    
     return _make_optimizer
 
-def make_lr_scheduler(config, n_step_per_epoch):
+def make_lr_scheduler(config, n_step):
+    lr_setup = config.setup.lr_scheduler 
+    if ':' in lr_setup:
+        lr_name, _ = lr_setup.split(':')
+    else:
+        lr_name = lr_setup
     
-    lr_name = config.setup.lr_scheduler 
     if hasattr(optax, lr_name):
         kwargs = {}
-        for key, val in config.lr_scheduler[lr_name].items():
+        for key, val in config.lr_scheduler[lr_setup].items():
             if 'steps' in key:
-                kwargs[key] = val * n_step_per_epoch
+                kwargs[key] = int(val * n_step)
             else:
                 kwargs[key] = val
             
         lr_scheduler = getattr(optax, lr_name)(**kwargs)
+    elif lr_name in ['step_lr', ]:
+        from lr_scheduler import step_lr
+        kwargs = config.lr_scheduler[lr_setup]
+        lr_scheduler = step_lr(**kwargs)
+    elif lr_name in ['lr_range_test', ]:
+        from lr_scheduler import lr_range_test
+        kwargs = config.lr_scheduler[lr_setup]
+        lr_scheduler = lr_range_test(**kwargs)
     else:
         raise ValueError(f'make_lr_scheduler dose not suppprt {lr_name}!!')
     
     return lr_scheduler
 
 def make_loss(config): 
-    
     if 'cb_ce_loss' in config.setup.loss:
         from loss import make_cb_ce_loss
         loss_f = make_cb_ce_loss(config)
@@ -111,6 +140,14 @@ def make_loss(config):
     elif 'ce_loss' in config.setup.loss:
         from loss import make_softmax_ce_loss
         loss_f = make_softmax_ce_loss(config)
+        
+    elif 'smooth_mse_loss' in config.setup.loss:
+        from loss import smooth_mse_loss
+        loss_f = smooth_mse_loss(config)
+        
+    elif 'mse_loss' in config.setup.loss:
+        from loss import mse_loss
+        loss_f = mse_loss(config)
         
     else:
         raise ValueError(f'There is no {config.setup.loss}!!')
@@ -137,19 +174,26 @@ def calc_accuracy_topk(logits, one_hot_labels, k = 5, mask = None):
     return jnp.nan_to_num(error_rate)
 
 # from jax.experimental.host_callback import id_print
-
-def topK_acc(logits, one_hot_labels, K = [1,5]):
+def topK_acc(logits, one_hot_labels, K = [1,5], is_divide = False):
     true_labels = jnp.argmax(one_hot_labels, -1).reshape([-1, 1])
     aaa = jnp.argsort(logits, axis=-1)
+    total = logits.shape[0]
     accs = []
     for k in K:
         preds = aaa[:, -k:]
         hit = jax.vmap(jnp.isin)(true_labels, preds)
         acc = hit.sum()
+        if is_divide:
+            acc /= total
         acc = jax.device_get(acc) 
         accs.append(acc)
     
     return accs
+
+import os
+def mkdir(d):
+    if not os.path.exists(d):
+        os.makedirs(d)
 
 import GPUtil
 from threading import Thread
